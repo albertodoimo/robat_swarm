@@ -11,6 +11,7 @@
 print('import libraries...')
 
 import numpy as np
+import matplotlib.pyplot as plt
 import pyroomacoustics as pra
 import scipy.signal as signal 
 import sounddevice as sd
@@ -23,7 +24,7 @@ import random
 import os
 import threading
 import pandas as pd 
-
+import netifaces as ni
 from scipy.ndimage import gaussian_filter1d
 from thymiodirect import Connection 
 from thymiodirect import Thymio
@@ -48,6 +49,10 @@ usb_fireface_index = get_card(sd.query_devices())
 print(sd.query_devices())
 print('usb_fireface_index=',usb_fireface_index)
 
+ni.ifaddresses('wlan0')
+raspi_local_ip = ni.ifaddresses('wlan0')[2][0]['addr']
+print('raspi_local_ip =', raspi_local_ip)
+
 # Parameters for the DOA algorithms
 trigger_level = -50 # dB level ref max pdm
 critical_level = -38 # dB level pdm critical distance
@@ -55,7 +60,7 @@ c = 343   # speed of sound
 fs = 48000
 
 rec_samplerate = 48000
-input_buffer_time = 0.01 # seconds
+input_buffer_time = 0.05 # seconds
 block_size = int(input_buffer_time*fs)  #used for the shared queue from which the doa is computed, not anymore for the output stream
 channels = 5
 mic_spacing = 0.018 #m
@@ -82,9 +87,9 @@ N_peaks = 1 # Number of peaks to detect in DAS spectrum
 
 # Parameters for the chirp signal
 rand = random.uniform(0.8, 1.2)
-duration_out = 20e-3  # Duration in seconds
+duration_out = 10e-3  # Duration in seconds
 silence_dur = 60 # [ms]
-amplitude = 0.1 # Amplitude of the chirp
+amplitude = 0.5 # Amplitude of the chirp
 
 # Generate a chirp signal
 low_freq = 1e3 # [Hz]
@@ -92,9 +97,6 @@ hi_freq =  20e3 # [Hz]
 t_tone = np.linspace(0, duration_out, int(fs*duration_out))
 chirp = signal.chirp(t_tone, low_freq, t_tone[-1], hi_freq)
 sig = pow_two_pad_and_window(chirp, fs = fs, show=False)
-
-cutoff = 100 # [Hz] highpass filter cutoff frequency
-sos = signal.butter(2, cutoff, 'hp', fs=fs, output='sos')
 
 silence_samples = int(silence_dur * fs/1000)
 silence_vec = np.zeros((silence_samples, ))
@@ -112,7 +114,10 @@ print('LP frequency:', auto_lowpas_freq)
 highpass_freq, lowpass_freq = [20 ,20e3]
 freq_range = [hi_freq, low_freq]
 
-sensitivity_path = 'robat_swarm/passive_robat/robat_py/Knowles_SPH0645LM4H-B_sensitivity.csv'
+cutoff = auto_hipas_freq # [Hz] highpass filter cutoff frequency
+sos = signal.butter(2, cutoff, 'hp', fs=fs, output='sos')
+
+sensitivity_path = 'passive_robat/robat_py/Knowles_SPH0645LM4H-B_sensitivity.csv'
 sensitivity = pd.read_csv(sensitivity_path)
 freqs = np.array(sensitivity.iloc[:, 0])  # first column contains frequencies
 sens_freqwise_rms = np.array(sensitivity.iloc[:, 1])  # Last column contains sensitivity values 
@@ -195,28 +200,77 @@ class AudioProcessor:
     def update(self):
         in_buffer = self.shared_audio_queue.get()
 
+        # # Plot and save the raw input buffer for the reference channel
+        # import matplotlib.pyplot as plt
+        # plt.figure(figsize=(10, 4))
+        # plt.plot(in_buffer[:, self.ref])
+        # plt.title('Raw Input Buffer - Reference Channel')
+        # plt.xlabel('Sample')
+        # plt.ylabel('Amplitude')
+        # plt.tight_layout()
+        # plt.savefig('raw_input_buffer_ref_channel.png')
+        # plt.close()
+
         # Apply highpass filter to each channel using sosfiltfilt
         in_sig = signal.sosfiltfilt(sos, in_buffer, axis=0)
-        
-        print(np.shape(in_sig))
 
-        print(np.mean(in_sig))
 
-        centrefreqs, freqrms = calc_native_freqwise_rms(in_sig[:,0], fs)
-    
+        # # Plot the filtered signal for the reference channel
+        # plt.figure(figsize=(10, 4))
+        # plt.plot(in_sig[:, self.ref])
+        # plt.title('Filtered Signal - Reference Channel')
+        # plt.xlabel('Sample')
+        # plt.ylabel('Amplitude')
+        # plt.tight_layout()
+        # plt.savefig('filtered_signal_ref_channel.png')
+        # plt.close()
+
+        centrefreqs_list = []
+        freqrms_list = []
+        for ch in range(in_sig.shape[1]):
+            centrefreqs_ch, freqrms_ch = calc_native_freqwise_rms(in_sig[:, ch], fs)
+            centrefreqs_list.append(centrefreqs_ch)
+            freqrms_list.append(freqrms_ch)
+        centrefreqs = np.array(centrefreqs_list).T
+        freqrms = np.array(freqrms_list).T
+
         interp_sensitivity = interpolate_freq_response([freqs, sens_freqwise_rms],
                         centrefreqs)
 
         frequency_band = [2e3, 20e3] # min, max frequency to do the compensation Hz
         tgtmic_relevant_freqs = np.logical_and(centrefreqs>=frequency_band[0],
                                     centrefreqs<=frequency_band[1])
-   
-        print(np.shape(interp_sensitivity))
-        freqwise_Parms = freqrms/interp_sensitivity
-        total_rms_freqwise_Parms = np.sqrt(np.sum(freqwise_Parms[tgtmic_relevant_freqs]**2))
 
-        print('db SPL:',pascal_to_dbspl(total_rms_freqwise_Parms))
+        freqwise_Parms = freqrms/interp_sensitivity
         
+        # # Calculate and save the average noise spectrum (ANS) figure
+
+        # plt.figure(figsize=(10, 4))
+        # plt.plot(centrefreqs[:, 0], freqwise_Parms[:, 0])
+        # plt.title('freqwise_Parms')
+        # plt.xlabel('Frequency (Hz)')
+        # plt.ylabel('Amplitude (compensated)')
+        # plt.tight_layout()
+        # plt.savefig('filtered_spectrum.png')
+        # plt.close()
+
+        # Compute total RMS for each channel separately over the relevant frequency band
+        total_rms_freqwise_Parms = []
+        for ch in range(freqwise_Parms.shape[1]):
+            relevant = tgtmic_relevant_freqs[:, ch]
+            total_rms = np.sqrt(np.sum(freqwise_Parms[relevant, ch]**2))
+            total_rms_freqwise_Parms.append(total_rms)
+        total_rms_freqwise_Parms = np.array(total_rms_freqwise_Parms)
+
+        print('db SPL:', pascal_to_dbspl(total_rms_freqwise_Parms))
+        
+ 
+        trigger_bool,critical_bool,dBrms_channel = check_if_above_level(in_sig,self.trigger_level,self.critical_level)
+        print(trigger_bool)
+        print(critical_bool)
+        max_dBrms = np.max(dBrms_channel)
+        print('max dBrms =',max_dBrms)
+        av_above_level = np.mean(dBrms_channel)
         #print(av_above_level)
         ref_sig = in_sig[:,self.ref]
         delay_crossch= calc_multich_delays(in_sig,ref_sig,self.fs,self.ref)
@@ -225,9 +279,9 @@ class AudioProcessor:
         avar_theta = avar_angle(delay_crossch,self.channels,self.mic_spacing,self.ref)
         
         time3 = datetime.datetime.now()
-        avar_theta1 = np.array([avar_theta, time3.strftime('%H:%M:%S.%f')[:-3]])
+        avar_theta1 = np.array([np.rad2deg(avar_theta), time3.strftime('%H:%M:%S.%f')[:-3]])
 
-        #print('avarage theta',avar_theta1)
+        print('avarage theta',avar_theta1)
             
         if trigger_bool or critical_bool:
             #print('avarage theta deg = ', np.rad2deg(avar_theta))
@@ -327,13 +381,14 @@ if __name__ == '__main__':
     av_above_level = -100
 
     # Create folder for saving recordings
-    time1 = startime.strftime('%Y-%m-%d__%H-%M-%S')
-    save_path = '/home/thymio/robat_py/'
-    folder_name = str(time1)  
-    folder_path = os.path.join(save_path, folder_name)
+    time1 = startime.strftime('%Y-%m-%d')
+    time2 = startime.strftime('_%Y-%m-%d__%H-%M-%S')
+    save_path = '/home/thymio/robat_py/robat_swarm/passive_robat/robat_py'
+    folder_name = str(raspi_local_ip)
+    folder_path = os.path.join(save_path,'recordings', folder_name, time1)
     os.makedirs(folder_path, exist_ok=True)
 
-    name = 'MULTIWAV_' + str(time1) + '.wav'
+    name = 'MULTIWAV_' + str(raspi_local_ip) + str(time2) + '.wav'
     args.filename = os.path.join(folder_path, name)
 
     if args.samplerate is None:  
@@ -342,8 +397,7 @@ if __name__ == '__main__':
         args.samplerate = int(device_info['default_samplerate'])
     if args.filename is None:
         timenow = datetime.datetime.now()
-        time1 = timenow.strftime('%Y-%m-%d__%H-%M-%S')
-        args.filename = 'MULTIWAV_' + str(time1) + '.wav'
+        args.filename = name
     print(args.samplerate)
 
     # Create instances of the AudioProcessor and RobotMove classes

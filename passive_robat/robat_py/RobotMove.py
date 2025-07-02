@@ -56,7 +56,7 @@ class RobotMove():
                 #self.avoid_white_line()
 
                 # Flush the angle queue to obtain the latest angle value.
-                #angle = None
+                angle = None
                 while not angle_queue.empty():
                     angle = angle_queue.get()
                     #print('Angle move:', angle)
