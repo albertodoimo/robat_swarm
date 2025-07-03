@@ -54,8 +54,8 @@ raspi_local_ip = ni.ifaddresses('wlan0')[2][0]['addr']
 print('raspi_local_ip =', raspi_local_ip)
 
 # Parameters for the DOA algorithms
-trigger_level = -50 # dB level ref max pdm
-critical_level = -38 # dB level pdm critical distance
+trigger_level = -80 # dB level ref max pdm
+critical_level = -60 # dB level pdm critical distance
 c = 343   # speed of sound
 fs = 48000
 
@@ -88,22 +88,33 @@ N_peaks = 1 # Number of peaks to detect in DAS spectrum
 # Parameters for the chirp signal
 rand = random.uniform(0.8, 1.2)
 duration_out = 10e-3  # Duration in seconds
-silence_dur = 60 # [ms]
-amplitude = 0.5 # Amplitude of the chirp
+silence_dur = 60 # [ms] can probably pushed to 20 
+amplitude = 1 # Amplitude of the chirp
 
-# Generate a chirp signal
-low_freq = 1e3 # [Hz]
-hi_freq =  20e3 # [Hz]
-t_tone = np.linspace(0, duration_out, int(fs*duration_out))
-chirp = signal.chirp(t_tone, low_freq, t_tone[-1], hi_freq)
-sig = pow_two_pad_and_window(chirp, fs = fs, show=False)
+t = np.linspace(0, duration_out, int(fs*duration_out))
+start_f, end_f = 2e2, 24e3
+sweep = signal.chirp(t, start_f, t[-1], end_f)
+sweep *= signal.windows.tukey(sweep.size, 0.2)
+sweep *= 0.8
 
 silence_samples = int(silence_dur * fs/1000)
 silence_vec = np.zeros((silence_samples, ))
-full_sig = np.concatenate((sig, silence_vec))
-print('len = ', len(full_sig))
+full_sig = np.concatenate((sweep, silence_vec))
+
 stereo_sig = np.hstack([full_sig.reshape(-1, 1), full_sig.reshape(-1, 1)])
 data = amplitude * np.float32(stereo_sig)
+
+# #plot and save data 
+# plt.figure(figsize=(10, 4))
+# plt.plot(np.arange(len(full_sig)) / fs, data[:, 0], label='Left Channel')
+# plt.plot(np.arange(len(full_sig)) / fs, data[:, 1], label='Right Channel')
+# plt.title('Chirp Signal')
+# plt.xlabel('Time [s]')
+# plt.ylabel('Amplitude')
+# plt.legend()
+# plt.tight_layout()
+# plt.savefig('chirp_signal.png')
+# plt.close()
 
 # Calculate highpass and lowpass frequencies based on the array geometry
 auto_hipas_freq = int(343/(2*(mic_spacing*(channels-1))))
@@ -112,7 +123,7 @@ auto_lowpas_freq = int(343/(2*mic_spacing))
 print('LP frequency:', auto_lowpas_freq)
 #highpass_freq, lowpass_freq = [auto_hipas_freq ,auto_lowpas_freq]
 highpass_freq, lowpass_freq = [20 ,20e3]
-freq_range = [hi_freq, low_freq]
+freq_range = [start_f, end_f]
 
 cutoff = auto_hipas_freq # [Hz] highpass filter cutoff frequency
 sos = signal.butter(2, cutoff, 'hp', fs=fs, output='sos')
@@ -181,7 +192,8 @@ class AudioProcessor:
         self.current_frame += chunksize
             
     def callback_in(self, indata, frames, time, status):
-        """This is called (from a separate thread) for each audio block."""
+        """This is called (from a separate thread) for each audio block.
+        approx only 0.00013 seconds in this operation"""
         self.shared_audio_queue.put((indata).copy())
         
 #    def callback(self, indata, outdata, frames, time, status):
@@ -198,7 +210,10 @@ class AudioProcessor:
 #        self.args.buffer = ((indata).copy())
 
     def update(self):
+        start_time = time.time()
         in_buffer = self.shared_audio_queue.get()
+        start_time_1 = time.time()
+        print('buffer queue time seconds=', start_time_1 - start_time)
 
         # # Plot and save the raw input buffer for the reference channel
         # import matplotlib.pyplot as plt
@@ -215,7 +230,7 @@ class AudioProcessor:
         in_sig = signal.sosfiltfilt(sos, in_buffer, axis=0)
 
 
-        # # Plot the filtered signal for the reference channel
+        # #Plot the filtered signal for the reference channel
         # plt.figure(figsize=(10, 4))
         # plt.plot(in_sig[:, self.ref])
         # plt.title('Filtered Signal - Reference Channel')
@@ -282,7 +297,10 @@ class AudioProcessor:
         avar_theta1 = np.array([np.rad2deg(avar_theta), time3.strftime('%H:%M:%S.%f')[:-3]])
 
         print('avarage theta',avar_theta1)
-            
+        
+        end_time = time.time()
+        print('update time seconds=', end_time - start_time) 
+           
         if trigger_bool or critical_bool:
             #print('avarage theta deg = ', np.rad2deg(avar_theta))
             return np.rad2deg(avar_theta), max_dBrms
@@ -427,13 +445,17 @@ if __name__ == '__main__':
                                 while out_stream.active:
                                     #robot_move.stop()
                                     pass
-            #print('out time =', time.time() - start_time)                       
-            #start_time = time.time()
+            print('out time =', time.time() - start_time)                       
+            start_time_1 = time.time()
             
             if method == 'CC':
+                print('0 time =', time.time() - start_time_1) 
                 args.angle, max_dBrms = audio_processor.update()
+                print('1 time =', time.time() - start_time_1)   
                 angle_queue.put(args.angle)
+                print('2 time =', time.time() - start_time_1)   
                 level_queue.put(max_dBrms)
+                print('3 time =', time.time() - start_time_1)   
 
                 if isinstance(args.angle, (int, float, np.number)):
                     if np.isnan(args.angle):
@@ -449,8 +471,7 @@ if __name__ == '__main__':
                 print('No valid method provided')
 
 
-            time_start_robot = time.time()
-            #print('in time =', time.time() - time_start)
+            print('in time =', time.time() - start_time_1)
         else:
             #print('in time =', time.time() - start_time)
             robot_move.stop()
