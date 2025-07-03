@@ -25,9 +25,11 @@ import os
 import threading
 import pandas as pd 
 import netifaces as ni
+
 from scipy.ndimage import gaussian_filter1d
 from thymiodirect import Connection 
 from thymiodirect import Thymio
+
 from functions.das_v2 import das_filter_v2
 from functions.music import music
 from functions.get_card import get_card 
@@ -39,6 +41,9 @@ from functions.bandpass import bandpass
 from functions.save_data_to_csv import save_data_to_csv
 from functions.utilities import pascal_to_dbspl, calc_native_freqwise_rms, interpolate_freq_response
 from functions.save_data_to_xml import save_data_to_xml
+from functions.matched_filter import matched_filter
+from functions.detect_peaks import detect_peaks
+
 from RobotMove import RobotMove
 from shared_queues import angle_queue, level_queue
 
@@ -54,8 +59,8 @@ raspi_local_ip = ni.ifaddresses('wlan0')[2][0]['addr']
 print('raspi_local_ip =', raspi_local_ip)
 
 # Parameters for the DOA algorithms
-trigger_level = -50 # dB level ref max pdm
-critical_level = -38 # dB level pdm critical distance
+trigger_level = -80 # dB level ref max pdm
+critical_level = -60 # dB level pdm critical distance
 c = 343   # speed of sound
 fs = 48000
 
@@ -88,20 +93,20 @@ N_peaks = 1 # Number of peaks to detect in DAS spectrum
 # Parameters for the chirp signal
 rand = random.uniform(0.8, 1.2)
 duration_out = 10e-3  # Duration in seconds
-silence_dur = 60 # [ms]
-amplitude = 0.5 # Amplitude of the chirp
+silence_dur = 50 # [ms]
+amplitude = 1 # Amplitude of the chirp
 
-# Generate a chirp signal
-low_freq = 1e3 # [Hz]
-hi_freq =  20e3 # [Hz]
-t_tone = np.linspace(0, duration_out, int(fs*duration_out))
-chirp = signal.chirp(t_tone, low_freq, t_tone[-1], hi_freq)
-sig = pow_two_pad_and_window(chirp, fs = fs, show=False)
+t = np.linspace(0, duration_out, int(fs*duration_out))
+start_f, end_f = 2e2, 24e3
+sweep = signal.chirp(t, start_f, t[-1], end_f)
+sweep *= signal.windows.tukey(sweep.size, 0.2)
+sweep *= 0.8
+sweep_padded = np.pad(sweep, pad_width=[int(fs*0.1)]*2, constant_values=[0,0])
 
 silence_samples = int(silence_dur * fs/1000)
 silence_vec = np.zeros((silence_samples, ))
-full_sig = np.concatenate((sig, silence_vec))
-print('len = ', len(full_sig))
+full_sig = np.concatenate((sweep_padded, silence_vec))
+
 stereo_sig = np.hstack([full_sig.reshape(-1, 1), full_sig.reshape(-1, 1)])
 data = amplitude * np.float32(stereo_sig)
 
@@ -112,7 +117,7 @@ auto_lowpas_freq = int(343/(2*mic_spacing))
 print('LP frequency:', auto_lowpas_freq)
 #highpass_freq, lowpass_freq = [auto_hipas_freq ,auto_lowpas_freq]
 highpass_freq, lowpass_freq = [20 ,20e3]
-freq_range = [hi_freq, low_freq]
+freq_range = [start_f, end_f]
 
 cutoff = auto_hipas_freq # [Hz] highpass filter cutoff frequency
 sos = signal.butter(2, cutoff, 'hp', fs=fs, output='sos')
@@ -213,7 +218,29 @@ class AudioProcessor:
 
         # Apply highpass filter to each channel using sosfiltfilt
         in_sig = signal.sosfiltfilt(sos, in_buffer, axis=0)
+        # Apply matched filter to each channel separately
+        mf_signal = np.zeros_like(in_sig)
+        peaks = []
+        for ch in range(in_sig.shape[1]):
+            mf_signal[:, ch] = matched_filter(in_sig[:, ch], sweep)
+            peaks.append(detect_peaks(mf_signal[:, ch], fs, prominence=0.5, distance=0.01))
+        peaks = np.array(peaks).T  # Transpose to match the shape of mf_signal
+        print(np.shape(peaks))
 
+        # # Plot matched filtered signal and detected peaks for the reference channel
+        # fig, axs = plt.subplots(self.channels, 1, figsize=(10, 2 * self.channels), sharex=True)
+        # for ch in range(self.channels):
+        #     axs[ch].plot(mf_signal[:, ch], label=f'Matched Filtered Signal (Ch {ch})')
+        #     ch_peaks = peaks[:, ch]
+        #     if len(ch_peaks) > 0:
+        #         axs[ch].plot(ch_peaks, mf_signal[ch_peaks, ch], 'rx', label='Detected Peaks')
+        #     axs[ch].set_title(f'Matched Filtered Signal and Peaks - Channel {ch}')
+        #     axs[ch].set_ylabel('Amplitude')
+        #     axs[ch].legend(loc='upper right')
+        # axs[-1].set_xlabel('Sample')
+        # plt.tight_layout()
+        # plt.savefig('matched_filtered_signal_peaks_all_channels.png')
+        # plt.close()
 
         # # Plot the filtered signal for the reference channel
         # plt.figure(figsize=(10, 4))
@@ -264,14 +291,13 @@ class AudioProcessor:
 
         print('db SPL:', pascal_to_dbspl(total_rms_freqwise_Parms))
         
- 
         trigger_bool,critical_bool,dBrms_channel = check_if_above_level(in_sig,self.trigger_level,self.critical_level)
         print(trigger_bool)
         print(critical_bool)
         max_dBrms = np.max(dBrms_channel)
         print('max dBrms =',max_dBrms)
         av_above_level = np.mean(dBrms_channel)
-        #print(av_above_level)
+        print(av_above_level)
         ref_sig = in_sig[:,self.ref]
         delay_crossch= calc_multich_delays(in_sig,ref_sig,self.fs,self.ref)
 
