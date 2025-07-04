@@ -60,14 +60,21 @@ class AudioProcessor:
         self.rec_samplerate = rec_samplerate
         self.sos = sos
         self.sweep = sweep
+        self.buffer = np.zeros((self.block_size, self.channels), dtype=np.float32)
 
     def continuos_recording(self):
         with sf.SoundFile(self.filename, mode='x', samplerate=self.rec_samplerate,
                             channels=self.channels, subtype=self.subtype) as file:
             with sd.InputStream(samplerate=self.fs, device=self.usb_fireface_index,channels=self.channels, callback=self.callback_in, blocksize=self.block_size):
                     while True:
-                        file.write(self.shared_audio_queue.get())
-        
+                        self.buffer = self.shared_audio_queue.get()
+                        file.write(self.buffer)
+
+    def input_stream(self):
+        with sd.InputStream(samplerate=self.fs, device=self.usb_fireface_index,channels=self.channels, callback=self.callback_in, blocksize=self.block_size) as in_stream:
+            while in_stream.active:
+                self.buffer = self.shared_audio_queue.get()
+
     def callback_out(self, outdata, frames, time, status):
         if status:
             print(status)
@@ -87,7 +94,7 @@ class AudioProcessor:
 
     def update(self):
         start_time = time.time()
-        in_buffer = self.shared_audio_queue.get()
+        in_buffer = self.buffer
         print('in buffer shape', in_buffer.shape)
         start_time_1 = time.time()
         print('buffer queue time seconds=', start_time_1 - start_time)
@@ -175,16 +182,9 @@ class AudioProcessor:
         # total_rms_freqwise_Parms = np.array(total_rms_freqwise_Parms)
 
         total_rms_freqwise_Parms = np.sqrt(np.sum(freqwise_Parms[self.tgtmic_relevant_freqs]**2))
-
-        print('db SPL:', pascal_to_dbspl(total_rms_freqwise_Parms))
+        dB_SPL_level = pascal_to_dbspl(total_rms_freqwise_Parms) #dB SPL level for reference channel
+        print('db SPL:',dB_SPL_level)
         
-        trigger_bool,critical_bool,dBrms_channel = check_if_above_level(in_sig,self.trigger_level,self.critical_level)
-        print(trigger_bool)
-        print(critical_bool)
-        max_dBrms = np.max(dBrms_channel)
-        print('max dBrms =',max_dBrms)
-        av_above_level = np.mean(dBrms_channel)
-        print(av_above_level)
         ref_sig = in_sig[:,self.ref]
         delay_crossch= calc_multich_delays(in_sig,ref_sig,self.fs,self.ref)
 
@@ -192,19 +192,19 @@ class AudioProcessor:
         avar_theta = avar_angle(delay_crossch,self.channels,self.mic_spacing,self.ref)
         
         time3 = datetime.datetime.now()
-        avar_theta1 = np.array([np.rad2deg(avar_theta), time3.strftime('%H:%M:%S.%f')[:-3]])
+
+        avar_theta1 = np.array([np.rad2deg(avar_theta), time3.strftime('%H:%M:%S.%f')[:-3]]) # convert to degrees and add timestamp
 
         print('avarage theta',avar_theta1)
         
         end_time = time.time()
-        print('update time seconds=', end_time - start_time_1) 
-           
-        if trigger_bool or critical_bool:
-            #print('avarage theta deg = ', np.rad2deg(avar_theta))
-            return np.rad2deg(avar_theta), max_dBrms
+        print('update time seconds =', end_time - start_time_1) 
+
+        if dB_SPL_level > self.trigger_level or dB_SPL_level > self.critical_level:
+            return np.rad2deg(avar_theta), dB_SPL_level
         else:
             avar_theta = None
-            return avar_theta, max_dBrms
+            return avar_theta, dB_SPL_level
 
     def update_das(self):
         # Update  with the DAS algorithm

@@ -50,7 +50,7 @@ from shared_queues import angle_queue, level_queue
 
 # Create queues for storing data
 shared_audio_queue = queue.Queue()
-
+recording_bool = False  # Set to True to record audio, False to just process audio without recording
 print('imports done')
 
 # Get the index of the USB card
@@ -63,8 +63,8 @@ raspi_local_ip = ni.ifaddresses('wlan0')[2][0]['addr']
 print('raspi_local_ip =', raspi_local_ip)
 
 # Parameters for the DOA algorithms
-trigger_level = -80 # dB level ref max pdm
-critical_level = -60 # dB level pdm critical distance
+trigger_level =  52 # dB SPL
+critical_level = 90 # dB SPL
 c = 343   # speed of sound
 fs = 48000
 
@@ -97,11 +97,11 @@ N_peaks = 1 # Number of peaks to detect in DAS spectrum
 # Parameters for the chirp signal
 rand = random.uniform(0.8, 1.2)
 duration_out = 10e-3  # Duration in seconds
-silence_dur = 60 # [ms] can probably pushed to 20 
+silence_dur = 100 # [ms] can probably pushed to 20 
 amplitude = 1 # Amplitude of the chirp
 
 t = np.linspace(0, duration_out, int(fs*duration_out))
-start_f, end_f = 2e2, 24e3
+start_f, end_f = 24e3, 2e2
 sweep = signal.chirp(t, start_f, t[-1], end_f)
 sweep *= signal.windows.tukey(sweep.size, 0.2)
 sweep *= 0.8
@@ -113,7 +113,7 @@ full_sig = np.concatenate((sweep, silence_vec))
 stereo_sig = np.hstack([full_sig.reshape(-1, 1), full_sig.reshape(-1, 1)])
 data = amplitude * np.float32(stereo_sig)
 
-# #plot and save data 
+#plot and save data 
 # plt.figure(figsize=(10, 4))
 # plt.plot(np.arange(len(full_sig)) / fs, data[:, 0], label='Left Channel')
 # plt.plot(np.arange(len(full_sig)) / fs, data[:, 1], label='Right Channel')
@@ -219,25 +219,26 @@ if __name__ == '__main__':
     args.angle = 0 
     av_above_level = -100
 
-    # Create folder for saving recordings
-    time1 = startime.strftime('%Y-%m-%d')
-    time2 = startime.strftime('_%Y-%m-%d__%H-%M-%S')
-    save_path = '/home/thymio/robat_py/robat_swarm/passive_robat/robat_py'
-    folder_name = str(raspi_local_ip)
-    folder_path = os.path.join(save_path,'recordings', folder_name, time1)
-    os.makedirs(folder_path, exist_ok=True)
+    if recording_bool == True:
+        # Create folder for saving recordings
+        time1 = startime.strftime('%Y-%m-%d')
+        time2 = startime.strftime('_%Y-%m-%d__%H-%M-%S')
+        save_path = '/home/thymio/robat_py/robat_swarm/passive_robat/robat_py'
+        folder_name = str(raspi_local_ip)
+        folder_path = os.path.join(save_path,'recordings', folder_name, time1)
+        os.makedirs(folder_path, exist_ok=True)
 
-    name = 'MULTIWAV_' + str(raspi_local_ip) + str(time2) + '.wav'
-    args.filename = os.path.join(folder_path, name)
+        name = 'MULTIWAV_' + str(raspi_local_ip) + str(time2) + '.wav'
+        args.filename = os.path.join(folder_path, name)
 
-    if args.samplerate is None:  
-        print('error!: no samplerate set! Using default')
-        device_info = sd.query_devices(args.device, 'input')
-        args.samplerate = int(device_info['default_samplerate'])
-    if args.filename is None:
-        timenow = datetime.datetime.now()
-        args.filename = name
-    print(args.samplerate)
+        if args.samplerate is None:  
+            print('error!: no samplerate set! Using default')
+            device_info = sd.query_devices(args.device, 'input')
+            args.samplerate = int(device_info['default_samplerate'])
+        if args.filename is None:
+            timenow = datetime.datetime.now()
+            args.filename = name
+        print(args.samplerate)
 
     # Create instances of the AudioProcessor and RobotMove classes
     audio_processor = AudioProcessor(fs, channels, block_size, data, args, trigger_level, critical_level, mic_spacing, ref, highpass_freq, lowpass_freq, theta_das, N_peaks,
@@ -245,38 +246,38 @@ if __name__ == '__main__':
     robot_move = RobotMove(speed, turn_speed, left_sensor_threshold, right_sensor_threshold, critical_level, trigger_level, ground_sensors_bool = True)
     
     # Create threads for the audio input and recording
-    inputstream_thread = threading.Thread(target=
-        audio_processor.continuos_recording, daemon = True)
-    inputstream_thread.start()
+    if recording_bool == True:
+        inputstream_thread = threading.Thread(target=
+            audio_processor.continuos_recording, daemon = True)
+        inputstream_thread.start()
+    else:
+        inputstream_thread = threading.Thread(target=
+            audio_processor.input_stream, daemon = True)
+        inputstream_thread.start()
 
-    #angle_queue.put(None)
     move_thread = threading.Thread(target=robot_move.audio_move, daemon = True)
     move_thread.start()
 
     try:
         while True:
-            current_frame = 0 
+            #  current_frame = 0 
             start_time = time.time()      
             with sd.OutputStream(samplerate=fs,
                                 blocksize=0, 
                                 device=usb_fireface_index, 
                                 channels=2,
-                                callback=audio_processor.callback_out,
-                                latency='low') as out_stream:
+                                callback=audio_processor.callback_out) as out_stream:
                                 while out_stream.active:
-                                    #robot_move.stop()
                                     pass
             print('out time =', time.time() - start_time)                       
             start_time_1 = time.time()
-            
+            time.sleep(0.1)  # Allow some time for the audio input to be processed
             if method == 'CC':
                 print('0 time =', time.time() - start_time_1) 
-                args.angle, max_dBrms = audio_processor.update()
-                print('1 time =', time.time() - start_time_1)   
+                args.angle, dB_SPL_level = audio_processor.update()  
                 angle_queue.put(args.angle)
-                print('2 time =', time.time() - start_time_1)   
-                level_queue.put(max_dBrms)
-                print('3 time =', time.time() - start_time_1)   
+                level_queue.put(dB_SPL_level)
+
 
                 if isinstance(args.angle, (int, float, np.number)):
                     if np.isnan(args.angle):
@@ -290,6 +291,7 @@ if __name__ == '__main__':
 
             else:
                 print('No valid method provided')
+                robot_move.stop()
 
 
             print('in time =', time.time() - start_time_1)

@@ -56,7 +56,7 @@ class RobotMove():
                 #self.avoid_white_line()
 
                 # Flush the angle queue to obtain the latest angle value.
-                angle = None
+                #angle = None
                 while not angle_queue.empty():
                     angle = angle_queue.get()
                     #print('Angle move:', angle)
@@ -66,7 +66,7 @@ class RobotMove():
                     continue
 
                 # Flush the level queue similarly to get the latest level value.
-                level = None
+                # level = None
                 while not level_queue.empty():
                     level = level_queue.get()
                     print('level move:', level)
@@ -100,6 +100,7 @@ class RobotMove():
                 # After executing a turn, go back to moving straight.
                 #print("Returning to forward movement")
                 self.move_forward()
+                level = None
 
                 # A brief delay to avoid overloading the CPU.
                 #time.sleep(0.05)
@@ -118,6 +119,7 @@ class RobotMove():
             if self.check_stop_all_motion():
                 #print("stop all motion: move forward")
                 self.stop_bool = True
+                self.stop()
                 # interrupt the loop
                 return
             self.robot['motor.left.target'] = self.forward_speed
