@@ -44,8 +44,12 @@ from functions.save_data_to_xml import save_data_to_xml
 from functions.matched_filter import matched_filter
 from functions.detect_peaks import detect_peaks
 
+from AudioProcessor import AudioProcessor
 from RobotMove import RobotMove
 from shared_queues import angle_queue, level_queue
+
+# Create queues for storing data
+shared_audio_queue = queue.Queue()
 
 print('imports done')
 
@@ -65,7 +69,7 @@ c = 343   # speed of sound
 fs = 48000
 
 rec_samplerate = 48000
-input_buffer_time = 0.05 # seconds
+input_buffer_time = 0.1 # seconds
 block_size = int(input_buffer_time*fs)  #used for the shared queue from which the doa is computed, not anymore for the output stream
 channels = 5
 mic_spacing = 0.018 #m
@@ -132,13 +136,23 @@ freq_range = [start_f, end_f]
 freq_range = [start_f, end_f]
 
 cutoff = auto_hipas_freq # [Hz] highpass filter cutoff frequency
-sos = signal.butter(2, cutoff, 'hp', fs=fs, output='sos')
+sos = signal.butter(1, cutoff, 'hp', fs=fs, output='sos')
 
 sensitivity_path = 'passive_robat/robat_py/Knowles_SPH0645LM4H-B_sensitivity.csv'
 sensitivity = pd.read_csv(sensitivity_path)
+
+in_sig = np.zeros(block_size, dtype=np.float32)  # Initialize the buffer for the audio input stream
+print('in_sig shape:', np.shape(in_sig))
+centrefreqs, freqrms = calc_native_freqwise_rms(in_sig, fs)
+
 freqs = np.array(sensitivity.iloc[:, 0])  # first column contains frequencies
 sens_freqwise_rms = np.array(sensitivity.iloc[:, 1])  # Last column contains sensitivity values 
+interp_sensitivity = interpolate_freq_response([freqs, sens_freqwise_rms],
+                centrefreqs)
 
+frequency_band = [2e3, 20e3] # min, max frequency to do the compensation Hz
+tgtmic_relevant_freqs = np.logical_and(centrefreqs>=frequency_band[0],
+                            centrefreqs<=frequency_band[1])
 # Thymio movement parameters
 max_speed = 200 #to be verified 
 
@@ -154,226 +168,6 @@ waiturn = 200 #turning time ms
 left_sensor_threshold = 100
 right_sensor_threshold = 100	
 
-# Create queues for storing data
-shared_audio_queue = queue.Queue()
-
-# Stream callback function
-class AudioProcessor:
-    def __init__(self, fs, channels, block_size, data, args, trigger_level, critical_level, mic_spacing, ref, highpass_freq, lowpass_freq, theta_das, N_peaks):
-        self.fs = fs
-        self.channels = channels
-        self.block_size = block_size
-        self.data = data
-        self.args = args
-        self.trigger_level = trigger_level
-        self.critical_level = critical_level
-        self.mic_spacing = mic_spacing
-        self.ref = ref
-        self.highpass_freq = highpass_freq
-        self.lowpass_freq = lowpass_freq
-        self.theta_das = theta_das
-        self.N_peaks = N_peaks
-        self.q = queue.Queue()
-        self.qq = queue.Queue()
-        self.qqq = queue.Queue()
-        self.shared_audio_queue = queue.Queue()
-        self.current_frame = 0
-
-    def continuos_recording(self):
-        with sf.SoundFile(args.filename, mode='x', samplerate=args.rec_samplerate,
-                            channels=args.channels, subtype=args.subtype) as file:
-            with sd.InputStream(samplerate=fs, device=usb_fireface_index,channels=channels, callback=audio_processor.callback_in, blocksize=self.block_size):
-                    while True:
-                        file.write(self.shared_audio_queue.get())
-        
-    def callback_out(self, outdata, frames, time, status):
-        if status:
-            print(status)
-        chunksize = min(len(self.data) - self.current_frame, frames)
-        outdata[:chunksize] = self.data[self.current_frame:self.current_frame + chunksize]
-        if chunksize < frames:
-            outdata[chunksize:] = 0
-            self.current_frame = 0  # Reset current_frame after each iteration
-            raise sd.CallbackStop()
-        self.current_frame += chunksize
-            
-    def callback_in(self, indata, frames, time, status):
-        """This is called (from a separate thread) for each audio block.
-        approx only 0.00013 seconds in this operation"""
-        self.shared_audio_queue.put((indata).copy())
-        
-#    def callback(self, indata, outdata, frames, time, status):
-#        if status:
-#            print(status)
-#        chunksize = min(len(self.data) - self.current_frame, frames)
-#        outdata[:chunksize] = self.data[self.current_frame:self.current_frame + chunksize]
-#        if chunksize < frames:
-#            outdata[chunksize:] = 0
-#            self.current_frame = 0  # Reset current_frame after each iteration
-#            raise sd.CallbackStop()
-#        self.current_frame += chunksize
-#        self.q.put((indata).copy())
-#        self.args.buffer = ((indata).copy())
-
-    def update(self):
-        start_time = time.time()
-        in_buffer = self.shared_audio_queue.get()
-        start_time_1 = time.time()
-        print('buffer queue time seconds=', start_time_1 - start_time)
-
-        # # Plot and save the raw input buffer for the reference channel
-        # import matplotlib.pyplot as plt
-        # plt.figure(figsize=(10, 4))
-        # plt.plot(in_buffer[:, self.ref])
-        # plt.title('Raw Input Buffer - Reference Channel')
-        # plt.xlabel('Sample')
-        # plt.ylabel('Amplitude')
-        # plt.tight_layout()
-        # plt.savefig('raw_input_buffer_ref_channel.png')
-        # plt.close()
-
-        # Apply highpass filter to each channel using sosfiltfilt
-        in_sig = signal.sosfiltfilt(sos, in_buffer, axis=0)
-        # Apply matched filter to each channel separately
-        mf_signal = np.zeros_like(in_sig)
-        peaks = []
-        for ch in range(in_sig.shape[1]):
-            mf_signal[:, ch] = matched_filter(in_sig[:, ch], sweep)
-            peaks.append(detect_peaks(mf_signal[:, ch], fs, prominence=0.5, distance=0.01))
-        peaks = np.array(peaks).T  # Transpose to match the shape of mf_signal
-        print(np.shape(peaks))
-
-        # # Plot matched filtered signal and detected peaks for the reference channel
-        # fig, axs = plt.subplots(self.channels, 1, figsize=(10, 2 * self.channels), sharex=True)
-        # for ch in range(self.channels):
-        #     axs[ch].plot(mf_signal[:, ch], label=f'Matched Filtered Signal (Ch {ch})')
-        #     ch_peaks = peaks[:, ch]
-        #     if len(ch_peaks) > 0:
-        #         axs[ch].plot(ch_peaks, mf_signal[ch_peaks, ch], 'rx', label='Detected Peaks')
-        #     axs[ch].set_title(f'Matched Filtered Signal and Peaks - Channel {ch}')
-        #     axs[ch].set_ylabel('Amplitude')
-        #     axs[ch].legend(loc='upper right')
-        # axs[-1].set_xlabel('Sample')
-        # plt.tight_layout()
-        # plt.savefig('matched_filtered_signal_peaks_all_channels.png')
-        # plt.close()
-
-        # # Plot the filtered signal for the reference channel
-        # plt.figure(figsize=(10, 4))
-        # plt.plot(in_sig[:, self.ref])
-        # plt.title('Filtered Signal - Reference Channel')
-        # plt.xlabel('Sample')
-        # plt.ylabel('Amplitude')
-        # plt.tight_layout()
-        # plt.savefig('filtered_signal_ref_channel.png')
-        # plt.close()
-
-        centrefreqs_list = []
-        freqrms_list = []
-        for ch in range(in_sig.shape[1]):
-            centrefreqs_ch, freqrms_ch = calc_native_freqwise_rms(in_sig[:, ch], fs)
-            centrefreqs_list.append(centrefreqs_ch)
-            freqrms_list.append(freqrms_ch)
-        centrefreqs = np.array(centrefreqs_list).T
-        freqrms = np.array(freqrms_list).T
-
-        interp_sensitivity = interpolate_freq_response([freqs, sens_freqwise_rms],
-                        centrefreqs)
-
-        frequency_band = [2e3, 20e3] # min, max frequency to do the compensation Hz
-        tgtmic_relevant_freqs = np.logical_and(centrefreqs>=frequency_band[0],
-                                    centrefreqs<=frequency_band[1])
-
-        freqwise_Parms = freqrms/interp_sensitivity
-        
-        # # Calculate and save the average noise spectrum (ANS) figure
-
-        # plt.figure(figsize=(10, 4))
-        # plt.plot(centrefreqs[:, 0], freqwise_Parms[:, 0])
-        # plt.title('freqwise_Parms')
-        # plt.xlabel('Frequency (Hz)')
-        # plt.ylabel('Amplitude (compensated)')
-        # plt.tight_layout()
-        # plt.savefig('filtered_spectrum.png')
-        # plt.close()
-
-        # Compute total RMS for each channel separately over the relevant frequency band
-        total_rms_freqwise_Parms = []
-        for ch in range(freqwise_Parms.shape[1]):
-            relevant = tgtmic_relevant_freqs[:, ch]
-            total_rms = np.sqrt(np.sum(freqwise_Parms[relevant, ch]**2))
-            total_rms_freqwise_Parms.append(total_rms)
-        total_rms_freqwise_Parms = np.array(total_rms_freqwise_Parms)
-
-        print('db SPL:', pascal_to_dbspl(total_rms_freqwise_Parms))
-        
-        trigger_bool,critical_bool,dBrms_channel = check_if_above_level(in_sig,self.trigger_level,self.critical_level)
-        print(trigger_bool)
-        print(critical_bool)
-        max_dBrms = np.max(dBrms_channel)
-        print('max dBrms =',max_dBrms)
-        av_above_level = np.mean(dBrms_channel)
-        print(av_above_level)
-        ref_sig = in_sig[:,self.ref]
-        delay_crossch= calc_multich_delays(in_sig,ref_sig,self.fs,self.ref)
-
-        # calculate avarage angle
-        avar_theta = avar_angle(delay_crossch,self.channels,self.mic_spacing,self.ref)
-        
-        time3 = datetime.datetime.now()
-        avar_theta1 = np.array([np.rad2deg(avar_theta), time3.strftime('%H:%M:%S.%f')[:-3]])
-
-        print('avarage theta',avar_theta1)
-        
-        end_time = time.time()
-        print('update time seconds=', end_time - start_time) 
-           
-        if trigger_bool or critical_bool:
-            #print('avarage theta deg = ', np.rad2deg(avar_theta))
-            return np.rad2deg(avar_theta), max_dBrms
-        else:
-            avar_theta = None
-            return avar_theta, max_dBrms
-
-    def update_das(self):
-        # Update  with the DAS algorithm
-        in_buffer = self.shared_audio_queue.get()
-        in_sig = in_buffer-np.mean(in_buffer)
-
-        #print('ref_channels_bp=', np.shape(ref_channels_bp))
-        trigger_bool,critical_bool,dBrms_channel = check_if_above_level(in_sig,self.trigger_level,self.critical_level)
-        print(trigger_bool)
-        print(critical_bool)
-        max_dBrms = np.max(dBrms_channel)
-        print('max dBrms =',max_dBrms)
-
-        #print('buffer', np.shape(in_sig))
-        #starttime = time.time()
-        theta, spatial_resp = das_filter_v2(in_sig, self.fs, self.channels, self.mic_spacing, [self.highpass_freq, self.lowpass_freq], theta=self.theta_das)
-        #theta, spatial_resp = music(in_sig, self.fs, self.channels, self.mic_spacing, [self.highpass_freq, self.lowpass_freq], theta=self.theta_das, show = True)
-        
-        #print(time.time()-starttime)
-        # find the spectrum peaks 
-
-        spatial_resp = gaussian_filter1d(spatial_resp, sigma=4)
-        peaks, _ = signal.find_peaks(spatial_resp)  # Adjust height as needed
-        # peak_angle = theta_das[np.argmax(spatial_resp)]
-        peak_angles = theta[peaks]
-        N = self.N_peaks # Number of peaks to keep
-
-        # Sort peaks by their height and keep the N largest ones
-        peak_heights = spatial_resp[peaks]
-        top_n_peak_indices = np.argsort(peak_heights)[-N:]  # Indices of the N largest peaks # Indices of the N largest peaks
-        top_n_peak_indices = top_n_peak_indices[::-1]
-        peak_angles = theta[peaks[top_n_peak_indices]]  # Corresponding angles
-        print('peak angles', peak_angles)
-
-        if trigger_bool or critical_bool:
-            #print('avarage theta deg = ', np.rad2deg(avar_theta))
-            return peak_angles, max_dBrms
-        else:
-            peak_angles = None
-            return peak_angles, max_dBrms
 
 if __name__ == '__main__':
 
@@ -446,7 +240,8 @@ if __name__ == '__main__':
     print(args.samplerate)
 
     # Create instances of the AudioProcessor and RobotMove classes
-    audio_processor = AudioProcessor(fs, channels, block_size, data, args, trigger_level, critical_level, mic_spacing, ref, highpass_freq, lowpass_freq, theta_das, N_peaks)
+    audio_processor = AudioProcessor(fs, channels, block_size, data, args, trigger_level, critical_level, mic_spacing, ref, highpass_freq, lowpass_freq, theta_das, N_peaks,
+                                      usb_fireface_index, args.subtype, interp_sensitivity, tgtmic_relevant_freqs, args.filename, args.rec_samplerate, sos, sweep)
     robot_move = RobotMove(speed, turn_speed, left_sensor_threshold, right_sensor_threshold, critical_level, trigger_level, ground_sensors_bool = True)
     
     # Create threads for the audio input and recording
@@ -459,7 +254,6 @@ if __name__ == '__main__':
     move_thread.start()
 
     try:
-        #audio_processor.continuos_recording()
         while True:
             current_frame = 0 
             start_time = time.time()      
