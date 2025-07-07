@@ -63,13 +63,13 @@ raspi_local_ip = ni.ifaddresses('wlan0')[2][0]['addr']
 print('raspi_local_ip =', raspi_local_ip)
 
 # Parameters for the DOA algorithms
-trigger_level =  52 # dB SPL
-critical_level = 90 # dB SPL
+trigger_level =  60 # dB SPL
+critical_level = 70 # dB SPL
 c = 343   # speed of sound
 fs = 48000
 
 rec_samplerate = 48000
-input_buffer_time = 0.1 # seconds
+input_buffer_time = 0.05 # seconds
 block_size = int(input_buffer_time*fs)  #used for the shared queue from which the doa is computed, not anymore for the output stream
 channels = 5
 mic_spacing = 0.018 #m
@@ -97,7 +97,7 @@ N_peaks = 1 # Number of peaks to detect in DAS spectrum
 # Parameters for the chirp signal
 rand = random.uniform(0.8, 1.2)
 duration_out = 10e-3  # Duration in seconds
-silence_dur = 100 # [ms] can probably pushed to 20 
+silence_dur = 60 # [ms] can probably pushed to 20 
 amplitude = 1 # Amplitude of the chirp
 
 t = np.linspace(0, duration_out, int(fs*duration_out))
@@ -269,11 +269,12 @@ if __name__ == '__main__':
                                 callback=audio_processor.callback_out) as out_stream:
                                 while out_stream.active:
                                     pass
-            print('out time =', time.time() - start_time)                       
+            # print('out time =', time.time() - start_time)                       
             start_time_1 = time.time()
-            time.sleep(0.1)  # Allow some time for the audio input to be processed
+              # Allow some time for the audio input to be processed
             if method == 'CC':
-                print('0 time =', time.time() - start_time_1) 
+                time.sleep(0.25)
+                # print('0 time =', time.time() - start_time_1) 
                 args.angle, dB_SPL_level = audio_processor.update()  
                 angle_queue.put(args.angle)
                 level_queue.put(dB_SPL_level)
@@ -294,7 +295,7 @@ if __name__ == '__main__':
                 robot_move.stop()
 
 
-            print('in time =', time.time() - start_time_1)
+            # print('in time =', time.time() - start_time_1)
         else:
             #print('in time =', time.time() - start_time)
             robot_move.stop()
@@ -313,5 +314,4 @@ if __name__ == '__main__':
         move_thread.join()
         print('\nRecording finished: ' + repr(args.filename)) 
         parser.exit(0)  
-        # Stop robot
         

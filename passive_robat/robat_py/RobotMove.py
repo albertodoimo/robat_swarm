@@ -53,10 +53,10 @@ class RobotMove():
                     self.stop()
                     continue  # Go back to top of loop
 
-                #self.avoid_white_line()
+                self.avoid_white_line()
 
                 # Flush the angle queue to obtain the latest angle value.
-                #angle = None
+                #  angle = None
                 while not angle_queue.empty():
                     angle = angle_queue.get()
                     #print('Angle move:', angle)
@@ -90,10 +90,20 @@ class RobotMove():
                     self.robot["leds.bottom.left"] = [255, 0, 0]
                     if angle < 0:
                         print('5: Negative angle received, rotating right')
+                        self.stop()
+                        self.robot["leds.bottom.right"] = [255, 0, 0]
+                        self.robot["leds.bottom.left"] = [255, 0, 0]                    
+                        time.sleep(1)
                         self.rotate_right(angle)
+                        
                     else:
                         print('6: Positive angle received, rotating left')
+                        self.stop()
+                        self.robot["leds.bottom.right"] = [255, 0, 0]
+                        self.robot["leds.bottom.left"] = [255, 0, 0]
+                        time.sleep(1)                        
                         self.rotate_left(angle)
+
                 else:
                     pass
 
@@ -102,14 +112,13 @@ class RobotMove():
                 self.move_forward()
                 level = None
 
-                # A brief delay to avoid overloading the CPU.
-                #time.sleep(0.05)
-
             except Exception as e:
                 print('Error in audio_move:', e)
                 self.stop_bool = True
             except KeyboardInterrupt:
                 self.stop()
+        else:
+            self.stop()
 
     def move_forward(self):
         self.robot["leds.top"] = [0, 255, 0]
@@ -150,6 +159,8 @@ class RobotMove():
             else:
                 self.robot['motor.left.target'] = 0
                 self.robot['motor.right.target'] = 0
+        else:
+            self.stop()
 
     def rotate_left(self, angle):
         if self.robot is not None:
@@ -168,6 +179,9 @@ class RobotMove():
             else:
                 self.robot['motor.left.target'] = 0
                 self.robot['motor.right.target'] = 0
+        else:
+            self.stop()
+
 
     def move_back(self): # move back when robot sees a obstacle in front
         if self.robot is not None:
@@ -187,6 +201,8 @@ class RobotMove():
                 # print("robot stop")
                 self.robot['motor.left.target'] = 0
                 self.robot['motor.right.target'] = 0
+        else:
+            self.stop()
 
     def check_stop_all_motion(self):
         if self.robot is not None:
@@ -194,54 +210,58 @@ class RobotMove():
             if self.robot['prox.ground.delta'][0] < 1 or self.robot['prox.ground.delta'][1] < 10:
                 #print("Robot lifted")
                 return True
-        return False
+        else:
+            self.stop()
+            return False
 
     def avoid_white_line(self):
-        # check if the white line is detected
-        if self.robot['prox.ground.reflected'][0] > self.left_sensor_threshold  and self.robot['prox.ground.reflected'][1] > self.right_sensor_threshold:
-            # Both sensors detect the line
-            #print('line detected L and R')
-            counter = self.angle_to_time(40, self.forward_speed)
-            while counter > 0:
-                if self.check_stop_all_motion():
-                    self.stop_bool = True
-                    break
-                self.robot['motor.left.target'] = self.turn_speed
-                self.robot['motor.right.target'] = -self.turn_speed
-                counter -= 1
-            return
-        if self.robot['prox.ground.reflected'][0] > self.left_sensor_threshold:
-            # Left sensor detects the line
-            #print('line detected L')
-            counter = self.angle_to_time(40, self.forward_speed)
-            while counter > 0:
-                if self.check_stop_all_motion():
-                    #print("stop all motion: rotate right")
-                    self.stop_bool = True
-                    break
-                self.robot['motor.left.target'] = self.turn_speed
-                self.robot['motor.right.target'] = -self.turn_speed
-                counter -= 1
-        if self.robot['prox.ground.reflected'][1] > self.right_sensor_threshold:
-            # Right sensor detects the line   
-            #print('line detected R')
-            counter = self.angle_to_time(40, self.forward_speed)
-            while counter > 0:
-                if self.check_stop_all_motion():
-                    #print("stop all motion: rotate right")
-                    self.stop_bool = True
-                    break
-                self.robot['motor.left.target'] = self.turn_speed
-                self.robot['motor.right.target'] = -self.turn_speed
-                counter -= 1
+        if self.robot is not None:
+            # check if the white line is detected
+            if self.robot['prox.ground.reflected'][0] > self.left_sensor_threshold  and self.robot['prox.ground.reflected'][1] > self.right_sensor_threshold:
+                # Both sensors detect the line
+                #print('line detected L and R')
+                counter = self.angle_to_time(90, self.forward_speed)
+                while counter > 0:
+                    if self.check_stop_all_motion():
+                        self.stop_bool = True
+                        break
+                    self.robot['motor.left.target'] = self.turn_speed
+                    self.robot['motor.right.target'] = -self.turn_speed
+                    counter -= 1
+                return
+            if self.robot['prox.ground.reflected'][0] > self.left_sensor_threshold:
+                # Left sensor detects the line
+                #print('line detected L')
+                counter = self.angle_to_time(90, self.forward_speed)
+                while counter > 0:
+                    if self.check_stop_all_motion():
+                        #print("stop all motion: rotate right")
+                        self.stop_bool = True
+                        break
+                    self.robot['motor.left.target'] = self.turn_speed
+                    self.robot['motor.right.target'] = -self.turn_speed
+                    counter -= 1
+            if self.robot['prox.ground.reflected'][1] > self.right_sensor_threshold:
+                # Right sensor detects the line   
+                #print('line detected R')
+                counter = self.angle_to_time(90, self.forward_speed)
+                while counter > 0:
+                    if self.check_stop_all_motion():
+                        #print("stop all motion: rotate right")
+                        self.stop_bool = True
+                        break
+                    self.robot['motor.left.target'] = self.turn_speed
+                    self.robot['motor.right.target'] = -self.turn_speed
+                    counter -= 1
+        else:
+            self.stop()
 
     def stop(self):
-        if self.robot is not None:
-            self.robot['motor.left.target'] = 0
-            self.robot['motor.right.target'] = 0
-            self.robot["leds.top"] = [0, 0, 0]
-            self.robot["leds.bottom.right"] = [0, 0, 0]
-            self.robot["leds.bottom.left"] = [0, 0, 0]
+        self.robot['motor.left.target'] = 0
+        self.robot['motor.right.target'] = 0
+        self.robot["leds.top"] = [0, 0, 0]
+        self.robot["leds.bottom.right"] = [0, 0, 0]
+        self.robot["leds.bottom.left"] = [0, 0, 0]
 
 #     def collision_avoidance(self):
 #         if self.robot is not None:

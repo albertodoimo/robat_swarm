@@ -95,9 +95,9 @@ class AudioProcessor:
     def update(self):
         start_time = time.time()
         in_buffer = self.buffer
-        print('in buffer shape', in_buffer.shape)
+        # print('in buffer shape', in_buffer.shape)
         start_time_1 = time.time()
-        print('buffer queue time seconds=', start_time_1 - start_time)
+        # print('buffer queue time seconds=', start_time_1 - start_time)
 
         # Plot and save the raw input buffer for the reference channel
         # import matplotlib.pyplot as plt
@@ -114,21 +114,41 @@ class AudioProcessor:
         in_sig = signal.sosfiltfilt(self.sos, in_buffer, axis=0)
         # Apply matched filter to each channel separately
 
-        start_time_2 = time.time()
+        # start_time_2 = time.time()
 
+        # # Match filter the input with the output template to find similar sweeps
         # mf_signal = matched_filter(in_sig[:, self.ref], self.sweep)
         # peaks = detect_peaks(mf_signal, self.fs, prominence=0.5, distance=0.01)
+        # if len(peaks) > 0:
+        #     start_idx = peaks[0]
+        #     end_idx = int(start_idx + self.sweep.shape[0])
+        #     trimmed_input_peaks = in_sig[start_idx:end_idx, :]
 
-        filtered_envelope = np.abs(signal.hilbert(in_sig[:, self.ref]))
-        peaks = detect_peaks(filtered_envelope, self.fs, prominence=0.5, distance=0.01)
-        print(np.shape(peaks))
+        #     # plot trimmed input peaks 
+        #     plt.figure(figsize=(10, 12))
+        #     for ch in range(trimmed_input_peaks.shape[1]):
+        #         ax = plt.subplot(trimmed_input_peaks.shape[1], 1, ch + 1, sharey=None if ch == 0 else plt.gca())
+        #         plt.plot(trimmed_input_peaks[:, ch])
+        #         plt.title(f'Trimmed Input Peaks - Channel {ch+1}')
+        #         plt.xlabel('Sample')
+        #         plt.grid(True)
+        #         if ch == 0:
+        #             plt.ylabel('Amplitude')
+        #     plt.tight_layout()
+        #     plt.savefig('trimmed_input_peaks_ref_channel.png')
+        #     plt.close()
+
+        # Filter the input with its envelope but without signal reference template
+        # filtered_envelope = np.abs(signal.hilbert(in_sig[:, self.ref], axis = 0))
+        # peaks = detect_peaks(in_sig[:, self.ref], self.fs, prominence=0.5, distance=0.01)
+
         start_time_3 = time.time()
-        print('matched filter time seconds=', start_time_3 - start_time_2)
+        # print('matched filter time seconds=', start_time_3 - start_time_2)
 
         # Plot matched filtered signal and detected peaks for the reference channel
         # plt.figure(figsize=(10, 4))
-        # plt.plot(filtered_envelope, label='Matched Filtered Envelope')
-        # plt.plot(peaks, filtered_envelope[peaks], "rx", label='Detected Peaks')
+        # plt.plot(in_sig[:, self.ref], label='Matched Filtered Envelope')
+        # plt.plot(peaks, mf_signal[peaks], "rx", label='Detected Peaks')
         # plt.title('Matched Filtered Envelope and Detected Peaks - Reference Channel')
         # plt.xlabel('Sample')
         # plt.ylabel('Amplitude')
@@ -161,7 +181,7 @@ class AudioProcessor:
         freqwise_Parms = freqrms/self.interp_sensitivity
         
         start_time_4 = time.time()
-        print('rms freqwise time =', start_time_4 - start_time_3)
+        # print('rms freqwise time =', start_time_4 - start_time_3)
         # # Calculate and save the average noise spectrum (ANS) figure
 
         # plt.figure(figsize=(10, 4))
@@ -198,7 +218,7 @@ class AudioProcessor:
         print('avarage theta',avar_theta1)
         
         end_time = time.time()
-        print('update time seconds =', end_time - start_time_1) 
+        # print('update time seconds =', end_time - start_time_1) 
 
         if dB_SPL_level > self.trigger_level or dB_SPL_level > self.critical_level:
             return np.rad2deg(avar_theta), dB_SPL_level
