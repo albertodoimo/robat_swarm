@@ -62,7 +62,6 @@ class RobotMove():
                 while not angle_queue.empty():
                     angle = angle_queue.get()
                     if angle is not None:
-                        self.robot['leds.circle'] = [0, 0, 0, 0, 0, 0, 0 ,0]
                         if angle > -22 and angle < 22:
                             self.robot['leds.circle'] = [255, 0, 0, 0, 255, 0, 0 ,0]
                         elif angle > 22 and angle < 67:
@@ -276,6 +275,7 @@ class RobotMove():
         self.robot["leds.top"] = [0, 0, 0]
         self.robot["leds.bottom.right"] = [0, 0, 0]
         self.robot["leds.bottom.left"] = [0, 0, 0]
+        self.robot['leds.circle'] = [0, 0, 0, 0, 0, 0, 0 ,0]
 
 #     def collision_avoidance(self):
 #         if self.robot is not None:

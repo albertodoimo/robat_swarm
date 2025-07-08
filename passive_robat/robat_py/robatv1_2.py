@@ -63,8 +63,8 @@ raspi_local_ip = ni.ifaddresses('wlan0')[2][0]['addr']
 print('raspi_local_ip =', raspi_local_ip)
 
 # Parameters for the DOA algorithms
-trigger_level =  60 # dB SPL
-critical_level = 75 # dB SPL
+trigger_level =  55 # dB SPL
+critical_level = 70 # dB SPL
 c = 343   # speed of sound
 fs = 48000
 
@@ -78,7 +78,6 @@ ref = channels//2 #central mic in odd array as ref
 #print('ref=',ref) 
 #ref= 0 #left most mic as reference
 critical = []
-# print('critical', np.size(critical))
 
 # Possible algorithms for computing DOA:CC, DAS
 method = 'CC'
@@ -96,8 +95,8 @@ N_peaks = 1 # Number of peaks to detect in DAS spectrum
 
 # Parameters for the chirp signal
 duration_out = 10e-3  # Duration in seconds
-silence_dur = 60 # [ms] can probably pushed to 20 
-amplitude = 1 # Amplitude of the chirp
+silence_dur = 20 # [ms] can probably pushed to 20 
+amplitude = 0.5 # Amplitude of the chirp
 
 t = np.linspace(0, duration_out, int(fs*duration_out))
 start_f, end_f = 24e3, 2e2
@@ -111,6 +110,9 @@ full_sig = np.concatenate((sweep, silence_vec))
 
 stereo_sig = np.hstack([full_sig.reshape(-1, 1), full_sig.reshape(-1, 1)])
 data = amplitude * np.float32(stereo_sig)
+
+out_blocksize = int(len(data))  # Length of the output signal
+print('out_blocksize =', out_blocksize)
 
 #plot and save data 
 # plt.figure(figsize=(10, 4))
@@ -256,23 +258,26 @@ if __name__ == '__main__':
 
     move_thread = threading.Thread(target=robot_move.audio_move, daemon = True)
     move_thread.start()
+    event = threading.Event()
 
     try:
         while True:
-            #  current_frame = 0 
+            event.clear()
             start_time = time.time()      
             with sd.OutputStream(samplerate=fs,
                                 blocksize=0, 
                                 device=usb_fireface_index, 
                                 channels=2,
-                                callback=audio_processor.callback_out) as out_stream:
-                                while out_stream.active:
-                                    pass
-            # print('out time =', time.time() - start_time)                       
+                                callback=audio_processor.callback_out, finished_callback=event.set, latency='low') as out_stream:
+                                    with out_stream:
+                                        event.wait()
+                                        print('event time =', time.time() - start_time)
+                                        time.sleep(input_buffer_time*2.3)
+            print('out time =', time.time() - start_time)                       
             start_time_1 = time.time()
               # Allow some time for the audio input to be processed
             if method == 'CC':
-                time.sleep(0.3)
+                  # Adjust this sleep time as needed
                 # print('0 time =', time.time() - start_time_1) 
                 args.angle, dB_SPL_level = audio_processor.update()  
                 angle_queue.put(args.angle)
@@ -294,9 +299,8 @@ if __name__ == '__main__':
                 robot_move.stop()
 
 
-            # print('in time =', time.time() - start_time_1)
+            print('in time =', time.time() - start_time_1)
         else:
-            #print('in time =', time.time() - start_time)
             robot_move.stop()
 
     except Exception as e:
