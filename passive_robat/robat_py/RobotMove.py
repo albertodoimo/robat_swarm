@@ -25,11 +25,13 @@ class RobotMove():
         self.robot = th[th.first_node()]
 
         # Delay to allow robot initialization of all variables
-        # time.sleep(1)
-        # b) print all variables
+
+        # Print all variables
         # print(th.variables(th.first_node()))
-        
+        # time.sleep(1)
+
         print("Robot connected")
+
         if self.ground_sensors_bool:
             print('ground.delta  L R = ', self.robot['prox.ground.delta'])
             print('ground.reflected  L R = ', self.robot['prox.ground.reflected'])
@@ -59,11 +61,24 @@ class RobotMove():
                 #  angle = None
                 while not angle_queue.empty():
                     angle = angle_queue.get()
-                    #print('Angle move:', angle)
-                if angle is None:
-                    #print('Empty queue: no angle value')
-                    self.move_forward()  # Go straight if no angle is available.
-                    continue
+                    if angle is not None:
+                        self.robot['leds.circle'] = [0, 0, 0, 0, 0, 0, 0 ,0]
+                        if angle > -22 and angle < 22:
+                            self.robot['leds.circle'] = [255, 0, 0, 0, 255, 0, 0 ,0]
+                        elif angle > 22 and angle < 67:
+                            self.robot['leds.circle'] = [0, 255, 0, 255, 0, 0, 0 ,0]
+                        elif angle > 67:
+                            self.robot['leds.circle'] = [0, 0, 255, 0, 0, 0, 0 ,0 ]
+                        elif angle < -22 and angle > -67:
+                            self.robot['leds.circle'] = [0, 0, 0, 0, 0, 255, 0 ,255]
+                        elif angle < -67:
+                            self.robot['leds.circle'] = [0, 0, 0, 0, 0, 0, 255 ,0]
+
+                    elif angle is None:
+                        #print('Empty queue: no angle value')
+                        self.robot['leds.circle'] = [255, 255, 255, 255, 255, 255, 255 ,255]
+                        self.move_forward()  # Go straight if no angle is available.
+                        continue
 
                 # Flush the level queue similarly to get the latest level value.
                 # level = None
@@ -89,23 +104,19 @@ class RobotMove():
                     self.robot["leds.bottom.left"] = [255, 0, 0]
                     if angle < 0:
                         print('5: Negative angle received, rotating right')
-                        self.stop()
                         self.robot["leds.bottom.right"] = [255, 0, 0]
                         self.robot["leds.bottom.left"] = [255, 0, 0]  
                         self.robot["leds.top"] = [255, 0, 0]                  
-                        
                         self.rotate_right(angle)
-                        time.sleep(0.5)
+                        self.rotate_right(angle)
                         
                     else:
                         print('6: Positive angle received, rotating left')
-                        self.stop()
                         self.robot["leds.bottom.right"] = [255, 0, 0]
                         self.robot["leds.bottom.left"] = [255, 0, 0]
-                        self.robot["leds.top"] = [255, 0, 0]
-                                                
+                        self.robot["leds.top"] = [255, 0, 0]                 
                         self.rotate_left(angle)
-                        time.sleep(0.5)
+                        self.rotate_left(angle)
 
                 else:
                     pass
