@@ -25,7 +25,7 @@ class RobotMove():
         self.robot = th[th.first_node()]
 
         # Delay to allow robot initialization of all variables
-        time.sleep(1)
+        # time.sleep(1)
         # b) print all variables
         # print(th.variables(th.first_node()))
         
@@ -69,7 +69,6 @@ class RobotMove():
                 # level = None
                 while not level_queue.empty():
                     level = level_queue.get()
-                    print('level move:', level)
 
                 # Make a decision based on the latest values.
 
@@ -92,17 +91,21 @@ class RobotMove():
                         print('5: Negative angle received, rotating right')
                         self.stop()
                         self.robot["leds.bottom.right"] = [255, 0, 0]
-                        self.robot["leds.bottom.left"] = [255, 0, 0]                    
-                        time.sleep(1)
+                        self.robot["leds.bottom.left"] = [255, 0, 0]  
+                        self.robot["leds.top"] = [255, 0, 0]                  
+                        
                         self.rotate_right(angle)
+                        time.sleep(0.5)
                         
                     else:
                         print('6: Positive angle received, rotating left')
                         self.stop()
                         self.robot["leds.bottom.right"] = [255, 0, 0]
                         self.robot["leds.bottom.left"] = [255, 0, 0]
-                        time.sleep(1)                        
+                        self.robot["leds.top"] = [255, 0, 0]
+                                                
                         self.rotate_left(angle)
+                        time.sleep(0.5)
 
                 else:
                     pass

@@ -64,12 +64,12 @@ print('raspi_local_ip =', raspi_local_ip)
 
 # Parameters for the DOA algorithms
 trigger_level =  60 # dB SPL
-critical_level = 70 # dB SPL
+critical_level = 75 # dB SPL
 c = 343   # speed of sound
 fs = 48000
 
 rec_samplerate = 48000
-input_buffer_time = 0.05 # seconds
+input_buffer_time = 0.1 # seconds
 block_size = int(input_buffer_time*fs)  #used for the shared queue from which the doa is computed, not anymore for the output stream
 channels = 5
 mic_spacing = 0.018 #m
@@ -95,7 +95,6 @@ theta_das = np.linspace(-90, 90, 61) # angles resolution for DAS spectrum
 N_peaks = 1 # Number of peaks to detect in DAS spectrum
 
 # Parameters for the chirp signal
-rand = random.uniform(0.8, 1.2)
 duration_out = 10e-3  # Duration in seconds
 silence_dur = 60 # [ms] can probably pushed to 20 
 amplitude = 1 # Amplitude of the chirp
@@ -273,7 +272,7 @@ if __name__ == '__main__':
             start_time_1 = time.time()
               # Allow some time for the audio input to be processed
             if method == 'CC':
-                time.sleep(0.25)
+                time.sleep(0.3)
                 # print('0 time =', time.time() - start_time_1) 
                 args.angle, dB_SPL_level = audio_processor.update()  
                 angle_queue.put(args.angle)
