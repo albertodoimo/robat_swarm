@@ -9,8 +9,10 @@ Created April 2025
 @author: thejasvi
 """
 import numpy as np 
-import scipy.signal as signal 
+import scipy.signal as signal
+import scipy 
 from scipy.interpolate import interp1d
+import time
 
 def pascal_to_dbspl(X):
     '''
@@ -72,9 +74,11 @@ def calc_native_freqwise_rms(X, fs):
         fftfreqs holds the frequency bins from the RFFT
         freqwise_rms is the RMS value of each frequency bin. 
     '''
+    time1 = time.time()
     rfft = np.fft.rfft(X)
     fftfreqs = np.fft.rfftfreq(X.size, 1/fs)
     # now calculate the rms per frequency-band
+    print('RFFT computation time:', time.time() - time1)
     freqwise_rms = []
     for each in rfft:
         mean_sq_freq = np.sum(abs(each)**2)/rfft.size

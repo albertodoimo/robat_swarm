@@ -1,4 +1,4 @@
-from functions.das_v2 import das_filter
+from functions.das_v2 import das_filter, fast_das_numpy
 from functions.music import music
 from functions.get_card import get_card 
 from functions.pow_two_pad_and_window import pow_two_pad_and_window
@@ -341,14 +341,15 @@ class AudioProcessor:
         dB_SPL_level = pascal_to_dbspl(total_rms_freqwise_Parms) #dB SPL level for reference channel
         print('db SPL:', dB_SPL_level)
 
-        # print('time to calculate dB SPL =', time.time() - start_time_4)
+        print('time to calculate dB SPL =', time.time() - start_time_4)
 
         start_time_5 = time.time()
         theta, spatial_resp, f_spec_axis, spectrum, bands = das_filter(in_sig, self.fs, self.channels, self.mic_spacing, [self.highpass_freq, self.lowpass_freq], theta=self.theta_das)
 
         print('freq axis', f_spec_axis.shape, 'bands shape', bands.shape, 'spectrum shape', spectrum.shape)
+
         # plt.figure(figsize=(10, 4))
-        # plt.plot(np.real(spectrum[:, self.ref]))
+        # plt.plot(f_spec_axis, np.abs(spectrum[:, self.ref, :]))
         # plt.title('DAS Spectrum')
         # plt.xlabel('Frequency (Hz)')
         # plt.ylabel('Amplitude ')
