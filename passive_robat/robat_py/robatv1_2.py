@@ -26,18 +26,11 @@ import threading
 import pandas as pd 
 import netifaces as ni
 
-from scipy.ndimage import gaussian_filter1d
+
 from thymiodirect import Connection 
 from thymiodirect import Thymio
 
-from functions.das_v2 import das_filter_v2
-from functions.music import music
 from functions.get_card import get_card 
-from functions.pow_two_pad_and_window import pow_two_pad_and_window
-from functions.check_if_above_level import check_if_above_level
-from functions.calc_multich_delays import calc_multich_delays
-from functions.avar_angle import avar_angle
-from functions.bandpass import bandpass
 from functions.save_data_to_csv import save_data_to_csv
 from functions.utilities import pascal_to_dbspl, calc_native_freqwise_rms, interpolate_freq_response
 from functions.save_data_to_xml import save_data_to_xml
@@ -80,7 +73,7 @@ ref = channels//2 #central mic in odd array as ref
 critical = []
 
 # Possible algorithms for computing DOA:CC, DAS
-method = 'CC'
+method = 'DAS'
 
 # Parameters for the CC algorithm
 avar_theta = None
@@ -91,7 +84,7 @@ echo = pra.linear_2D_array(center=[(channels-1)*mic_spacing//2,0], M=channels, p
 
 # Parameters for the DAS algorithm
 theta_das = np.linspace(-90, 90, 61) # angles resolution for DAS spectrum
-N_peaks = 1 # Number of peaks to detect in DAS spectrum
+N_peaks = 2 # Number of peaks to detect in DAS spectrum
 
 # Parameters for the chirp signal
 duration_out = 10e-3  # Duration in seconds
@@ -132,8 +125,7 @@ print('HP frequency:', auto_hipas_freq)
 auto_lowpas_freq = int(343/(2*mic_spacing))
 print('LP frequency:', auto_lowpas_freq)
 #highpass_freq, lowpass_freq = [auto_hipas_freq ,auto_lowpas_freq]
-highpass_freq, lowpass_freq = [20 ,20e3]
-freq_range = [start_f, end_f]
+highpass_freq, lowpass_freq = [200 ,20e3]
 freq_range = [start_f, end_f]
 
 cutoff = auto_hipas_freq # [Hz] highpass filter cutoff frequency
@@ -272,7 +264,8 @@ if __name__ == '__main__':
                                     with out_stream:
                                         event.wait()
                                         print('event time =', time.time() - start_time)
-                                        time.sleep(input_buffer_time*2.3)
+                                        if method == 'CC':
+                                            time.sleep(input_buffer_time*2.3)
             print('out time =', time.time() - start_time)                       
             start_time_1 = time.time()
               # Allow some time for the audio input to be processed
@@ -290,9 +283,9 @@ if __name__ == '__main__':
 
             elif method == 'DAS':
 
-                args.angle, max_dBrms = audio_processor.update_das()
+                args.angle, dB_SPL_level = audio_processor.update_das()
                 angle_queue.put(args.angle)
-                level_queue.put(max_dBrms)
+                level_queue.put(dB_SPL_level)
 
             else:
                 print('No valid method provided')

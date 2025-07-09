@@ -1,4 +1,4 @@
-from functions.das_v2 import das_filter_v2
+from functions.das_v2 import das_filter
 from functions.music import music
 from functions.get_card import get_card 
 from functions.pow_two_pad_and_window import pow_two_pad_and_window
@@ -11,6 +11,7 @@ from functions.utilities import pascal_to_dbspl, calc_native_freqwise_rms, inter
 from functions.save_data_to_xml import save_data_to_xml
 from functions.matched_filter import matched_filter
 from functions.detect_peaks import detect_peaks
+from scipy.ndimage import gaussian_filter1d
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -179,6 +180,7 @@ class AudioProcessor:
         # freqrms = np.array(freqrms_list).T
 
         centrefreqs, freqrms = calc_native_freqwise_rms(in_sig[:, self.ref], self.fs)
+        
         freqwise_Parms = freqrms/self.interp_sensitivity
         
         start_time_4 = time.time()
@@ -228,26 +230,136 @@ class AudioProcessor:
             return avar_theta, dB_SPL_level
 
     def update_das(self):
-        # Update  with the DAS algorithm
-        in_buffer = self.shared_audio_queue.get()
-        in_sig = in_buffer-np.mean(in_buffer)
 
-        #print('ref_channels_bp=', np.shape(ref_channels_bp))
-        trigger_bool,critical_bool,dBrms_channel = check_if_above_level(in_sig,self.trigger_level,self.critical_level)
-        print(trigger_bool)
-        print(critical_bool)
-        max_dBrms = np.max(dBrms_channel)
-        print('max dBrms =',max_dBrms)
+        start_time = time.time()
+        in_buffer = self.buffer
+        # print('buffer queue time seconds=', start_time_1 - start_time)
 
-        #print('buffer', np.shape(in_sig))
-        #starttime = time.time()
-        theta, spatial_resp = das_filter_v2(in_sig, self.fs, self.channels, self.mic_spacing, [self.highpass_freq, self.lowpass_freq], theta=self.theta_das)
-        #theta, spatial_resp = music(in_sig, self.fs, self.channels, self.mic_spacing, [self.highpass_freq, self.lowpass_freq], theta=self.theta_das, show = True)
+        # Plot and save the raw input buffer for the reference channel
+        # import matplotlib.pyplot as plt
+        # plt.figure(figsize=(10, 4))
+        # plt.plot(in_buffer[:, self.ref])
+        # plt.title('Raw Input Buffer - Reference Channel')
+        # plt.xlabel('Sample')
+        # plt.ylabel('Amplitude')
+        # plt.tight_layout()
+        # plt.savefig('raw_input_buffer_ref_channel.png')
+        # plt.close()
+
+        # Apply highpass filter to each channel using sosfiltfilt
+        in_sig = signal.sosfiltfilt(self.sos, in_buffer, axis=0)
+        # Apply matched filter to each channel separately
+
+        start_time_2 = time.time()
+
+        # # Match filter the input with the output template to find similar sweeps
+        # mf_signal = matched_filter(in_sig[:, self.ref], self.sweep)
+        # peaks = detect_peaks(mf_signal, self.fs, prominence=0.5, distance=0.01)
+        # if len(peaks) > 0:
+        #     start_idx = peaks[0]
+        #     end_idx = int(start_idx + self.sweep.shape[0])
+        #     trimmed_input_peaks = in_sig[start_idx:end_idx, :]
+
+        #     # plot trimmed input peaks 
+        #     plt.figure(figsize=(10, 12))
+        #     for ch in range(trimmed_input_peaks.shape[1]):
+        #         ax = plt.subplot(trimmed_input_peaks.shape[1], 1, ch + 1, sharey=None if ch == 0 else plt.gca())
+        #         plt.plot(trimmed_input_peaks[:, ch])
+        #         plt.title(f'Trimmed Input Peaks - Channel {ch+1}')
+        #         plt.xlabel('Sample')
+        #         plt.grid(True)
+        #         if ch == 0:
+        #             plt.ylabel('Amplitude')
+        #     plt.tight_layout()
+        #     plt.savefig('trimmed_input_peaks_ref_channel.png')
+        #     plt.close()
+
+        # Filter the input with its envelope but without signal reference template
+        # filtered_envelope = np.abs(signal.hilbert(in_sig[:, self.ref], axis = 0))
+        # peaks = detect_peaks(in_sig[:, self.ref], self.fs, prominence=0.5, distance=0.01)
+
+        start_time_3 = time.time()
+        print('matched filter time seconds=', start_time_3 - start_time_2)
+
+        # Plot matched filtered signal and detected peaks for the reference channel
+        # plt.figure(figsize=(10, 4))
+        # plt.plot(in_sig[:, self.ref], label='Matched Filtered Envelope')
+        # plt.plot(peaks, mf_signal[peaks], "rx", label='Detected Peaks')
+        # plt.title('Matched Filtered Envelope and Detected Peaks - Reference Channel')
+        # plt.xlabel('Sample')
+        # plt.ylabel('Amplitude')
+        # plt.legend()
+        # plt.tight_layout()
+        # plt.savefig('matched_filtered_peaks_ref_channel.png')
+        # plt.close()
+
+
+        # Plot the filtered signal for the reference channel
+        # plt.figure(figsize=(10, 4))
+        # plt.plot(in_sig[:, self.ref])
+        # plt.title('Filtered Signal - Reference Channel')
+        # plt.xlabel('Sample')
+        # plt.ylabel('Amplitude')
+        # plt.tight_layout()
+        # plt.savefig('filtered_signal_ref_channel.png')
+        # plt.close()
+
+        # centrefreqs_list = []
+        # freqrms_list = []
+        # for ch in range(in_sig.shape[1]):
+        #     centrefreqs_ch, freqrms_ch = calc_native_freqwise_rms(in_sig[:, ch], self.fs)
+        #     centrefreqs_list.append(centrefreqs_ch)
+        #     freqrms_list.append(freqrms_ch)
+        # centrefreqs = np.array(centrefreqs_list).T
+        # freqrms = np.array(freqrms_list).T
+
+        centrefreqs, freqrms = calc_native_freqwise_rms(in_sig[:, self.ref], self.fs)
+        freqwise_Parms = freqrms/self.interp_sensitivity
         
-        #print(time.time()-starttime)
-        # find the spectrum peaks 
+        start_time_4 = time.time()
+        print('rms freqwise time =', start_time_4 - start_time_3)
+        # # Calculate and save the average noise spectrum (ANS) figure
 
-        spatial_resp = gaussian_filter1d(spatial_resp, sigma=4)
+        # plt.figure(figsize=(10, 4))
+        # plt.plot(centrefreqs, freqwise_Parms)
+        # plt.title('freqwise_Parms')
+        # plt.xlabel('Frequency (Hz)')
+        # plt.ylabel('Amplitude')
+        # plt.tight_layout()
+        # plt.savefig('filtered_spectrum.png')
+        # plt.close()
+
+        # Compute total RMS for each channel separately over the relevant frequency band
+        # total_rms_freqwise_Parms = []
+        # for ch in range(freqwise_Parms.shape[1]):
+        #     relevant = self.tgtmic_relevant_freqs[:, ch]
+        #     total_rms = np.sqrt(np.sum(freqwise_Parms[relevant, ch]**2))
+        #     total_rms_freqwise_Parms.append(total_rms)
+        # total_rms_freqwise_Parms = np.array(total_rms_freqwise_Parms)
+
+        total_rms_freqwise_Parms = np.sqrt(np.sum(freqwise_Parms[self.tgtmic_relevant_freqs]**2))
+        dB_SPL_level = pascal_to_dbspl(total_rms_freqwise_Parms) #dB SPL level for reference channel
+        print('db SPL:', dB_SPL_level)
+
+        # print('time to calculate dB SPL =', time.time() - start_time_4)
+
+        start_time_5 = time.time()
+        theta, spatial_resp, f_spec_axis, spectrum, bands = das_filter(in_sig, self.fs, self.channels, self.mic_spacing, [self.highpass_freq, self.lowpass_freq], theta=self.theta_das)
+
+        print('freq axis', f_spec_axis.shape, 'bands shape', bands.shape, 'spectrum shape', spectrum.shape)
+        # plt.figure(figsize=(10, 4))
+        # plt.plot(np.real(spectrum[:, self.ref]))
+        # plt.title('DAS Spectrum')
+        # plt.xlabel('Frequency (Hz)')
+        # plt.ylabel('Amplitude ')
+        # plt.tight_layout()
+        # plt.savefig('das_spectrum.png')
+        # plt.close()
+
+        start_time_6 = time.time()
+        print('das computation =', start_time_6 - start_time_5)
+
+        #spatial_resp = gaussian_filter1d(spatial_resp, sigma=4)
         peaks, _ = signal.find_peaks(spatial_resp)  # Adjust height as needed
         # peak_angle = theta_das[np.argmax(spatial_resp)]
         peak_angles = theta[peaks]
@@ -258,11 +370,16 @@ class AudioProcessor:
         top_n_peak_indices = np.argsort(peak_heights)[-N:]  # Indices of the N largest peaks # Indices of the N largest peaks
         top_n_peak_indices = top_n_peak_indices[::-1]
         peak_angles = theta[peaks[top_n_peak_indices]]  # Corresponding angles
-        print('peak angles', peak_angles)
+        print('peak angles', peak_angles, 'peak heights', peak_heights[top_n_peak_indices])
 
-        if trigger_bool or critical_bool:
-            #print('avarage theta deg = ', np.rad2deg(avar_theta))
-            return peak_angles, max_dBrms
+        end_time = time.time()
+
+        print('peak finding =', end_time - start_time_6)
+
+        print('update time seconds =', end_time - start_time)
+
+        if dB_SPL_level > self.trigger_level or dB_SPL_level > self.critical_level:
+            return peak_angles[0], dB_SPL_level
         else:
             peak_angles = None
-            return peak_angles, max_dBrms
+            return peak_angles, dB_SPL_level

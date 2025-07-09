@@ -126,7 +126,7 @@ class RobotMove():
                 level = None
 
             except Exception as e:
-                print('Error in audio_move:', e)
+                #print('Error in audio_move:', e)
                 self.stop_bool = True
             except KeyboardInterrupt:
                 self.stop()
