@@ -78,14 +78,22 @@ def calc_native_freqwise_rms(X, fs):
     rfft = np.fft.rfft(X)
     fftfreqs = np.fft.rfftfreq(X.size, 1/fs)
     # now calculate the rms per frequency-band
-    print('RFFT computation time:', time.time() - time1)
+    # print('RFFT computation time:', time.time() - time1)
     freqwise_rms = []
-    for each in rfft:
-        mean_sq_freq = np.sum(abs(each)**2)/rfft.size
-        rms_freq = np.sqrt(mean_sq_freq/(2*rfft.size-1))
-        freqwise_rms.append(rms_freq)
+
+    abs_rfft_squared = np.abs(rfft)**2
+    mean_sq_freq = abs_rfft_squared / rfft.size
+    rms_freq = np.sqrt(mean_sq_freq / (2*rfft.size-1))
+    freqwise_rms = rms_freq.tolist()
+
+    # freqwise_rms2 = []
+    # for each in rfft:
+    #     mean_sq_freq2 = np.sum(abs(each)**2)/rfft.size
+    #     rms_freq2 = np.sqrt(mean_sq_freq2/(2*rfft.size-1))
+    #     freqwise_rms2.append(rms_freq2)
     return fftfreqs, freqwise_rms
 
+    
 
 # Make an interpolation function 
 def interpolate_freq_response(mic_freq_response, new_freqs):

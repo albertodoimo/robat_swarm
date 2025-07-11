@@ -1,4 +1,4 @@
-from functions.das_v2 import das_filter, fast_das_numpy
+from functions.das_v2 import das_filter
 from functions.music import music
 from functions.get_card import get_card 
 from functions.pow_two_pad_and_window import pow_two_pad_and_window
@@ -275,8 +275,35 @@ class AudioProcessor:
         #     plt.close()
 
         # Filter the input with its envelope but without signal reference template
-        # filtered_envelope = np.abs(signal.hilbert(in_sig[:, self.ref], axis = 0))
+        filtered_envelope = np.abs(signal.hilbert(in_sig[:, self.ref], axis=0))
         # peaks = detect_peaks(in_sig[:, self.ref], self.fs, prominence=0.5, distance=0.01)
+
+        max_envelope_idx = np.argmax(filtered_envelope)
+        max_envelope_value = filtered_envelope[max_envelope_idx]
+        print('Max envelope value:', max_envelope_value)
+
+        # Trim a 30 ms part around the max
+        trim_ms = 30
+        trim_samples = int(self.fs * trim_ms / 1000)
+        half_trim = trim_samples // 2
+        start_idx = max(0, max_envelope_idx - half_trim)
+        end_idx = min(in_sig.shape[0], max_envelope_idx + half_trim)
+        trimmed_signal = in_sig[start_idx:end_idx, :]
+    
+        # plot trimmed input peaks 
+        plt.figure(figsize=(10, 12))
+        for ch in range(trimmed_signal.shape[1]):
+            ax = plt.subplot(trimmed_signal.shape[1], 1, ch + 1, sharey=None if ch == 0 else plt.gca())
+            plt.plot(trimmed_signal[:, ch])
+            plt.title(f'Trimmed Input Peaks - Channel {ch+1}')
+            plt.xlabel('Sample')
+            plt.grid(True)
+            if ch == 0:
+                plt.ylabel('Amplitude')
+        plt.tight_layout()
+        plt.savefig('trimmed_input.png')
+        plt.close()
+
 
         start_time_3 = time.time()
         print('matched filter time seconds=', start_time_3 - start_time_2)
@@ -344,9 +371,9 @@ class AudioProcessor:
         print('time to calculate dB SPL =', time.time() - start_time_4)
 
         start_time_5 = time.time()
-        theta, spatial_resp, f_spec_axis, spectrum, bands = das_filter(in_sig, self.fs, self.channels, self.mic_spacing, [self.highpass_freq, self.lowpass_freq], theta=self.theta_das)
+        theta, spatial_resp, f_spec_axis, spectrum, bands = das_filter(trimmed_signal, self.fs, self.channels, self.mic_spacing, [self.highpass_freq, self.lowpass_freq], theta=self.theta_das)
 
-        print('freq axis', f_spec_axis.shape, 'bands shape', bands.shape, 'spectrum shape', spectrum.shape)
+        # print('freq axis', f_spec_axis.shape, 'bands shape', bands.shape, 'spectrum shape', spectrum.shape)
 
         # plt.figure(figsize=(10, 4))
         # plt.plot(f_spec_axis, np.abs(spectrum[:, self.ref, :]))

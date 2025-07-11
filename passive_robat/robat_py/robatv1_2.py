@@ -57,7 +57,7 @@ print('raspi_local_ip =', raspi_local_ip)
 
 # Parameters for the DOA algorithms
 trigger_level =  55 # dB SPL
-critical_level = 70 # dB SPL
+critical_level = 65 # dB SPL
 c = 343   # speed of sound
 fs = 48000
 
