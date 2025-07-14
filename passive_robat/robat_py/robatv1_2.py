@@ -56,7 +56,7 @@ raspi_local_ip = ni.ifaddresses('wlan0')[2][0]['addr']
 print('raspi_local_ip =', raspi_local_ip)
 
 # Parameters for the DOA algorithms
-trigger_level =  55 # dB SPL
+trigger_level =  60 # dB SPL
 critical_level = 65 # dB SPL
 c = 343   # speed of sound
 fs = 48000
@@ -88,7 +88,8 @@ N_peaks = 2 # Number of peaks to detect in DAS spectrum
 
 # Parameters for the chirp signal
 duration_out = 10e-3  # Duration in seconds
-silence_dur = 20 # [ms] can probably pushed to 20 
+silence_pre = 0 # [ms] can probably pushed to 20 
+silence_post = 60 # [ms] can probably pushed to 20
 amplitude = 0.5 # Amplitude of the chirp
 
 t = np.linspace(0, duration_out, int(fs*duration_out))
@@ -97,9 +98,12 @@ sweep = signal.chirp(t, start_f, t[-1], end_f)
 sweep *= signal.windows.tukey(sweep.size, 0.2)
 sweep *= 0.8
 
-silence_samples = int(silence_dur * fs/1000)
-silence_vec = np.zeros((silence_samples, ))
-full_sig = np.concatenate((sweep, silence_vec))
+silence_samples_pre = int(silence_pre * fs/1000)
+silence_vec_pre = np.zeros((silence_samples_pre, ))
+silence_samples_post = int(silence_post * fs/1000)
+silence_vec_post = np.zeros((silence_samples_post, ))
+post_silence_sig = np.concatenate((sweep, silence_vec_post))
+full_sig = np.concatenate((silence_vec_pre, post_silence_sig))
 
 stereo_sig = np.hstack([full_sig.reshape(-1, 1), full_sig.reshape(-1, 1)])
 data = amplitude * np.float32(stereo_sig)
@@ -107,7 +111,7 @@ data = amplitude * np.float32(stereo_sig)
 out_blocksize = int(len(data))  # Length of the output signal
 print('out_blocksize =', out_blocksize)
 
-#plot and save data 
+# plot and save data 
 # plt.figure(figsize=(10, 4))
 # plt.plot(np.arange(len(full_sig)) / fs, data[:, 0], label='Left Channel')
 # plt.plot(np.arange(len(full_sig)) / fs, data[:, 1], label='Right Channel')
@@ -266,7 +270,8 @@ if __name__ == '__main__':
                                         print('event time =', time.time() - start_time)
                                         if method == 'CC':
                                             time.sleep(input_buffer_time*2.3)
-            print('out time =', time.time() - start_time)                       
+            print('out time =', time.time() - start_time)  
+            time.sleep(0.25)                     
             start_time_1 = time.time()
               # Allow some time for the audio input to be processed
             if method == 'CC':

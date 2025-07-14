@@ -282,27 +282,27 @@ class AudioProcessor:
         max_envelope_value = filtered_envelope[max_envelope_idx]
         print('Max envelope value:', max_envelope_value)
 
-        # Trim a 30 ms part around the max
-        trim_ms = 30
+        # Trim a 10 ms part around the max
+        trim_ms = 10
         trim_samples = int(self.fs * trim_ms / 1000)
         half_trim = trim_samples // 2
         start_idx = max(0, max_envelope_idx - half_trim)
         end_idx = min(in_sig.shape[0], max_envelope_idx + half_trim)
         trimmed_signal = in_sig[start_idx:end_idx, :]
     
-        # plot trimmed input peaks 
-        plt.figure(figsize=(10, 12))
-        for ch in range(trimmed_signal.shape[1]):
-            ax = plt.subplot(trimmed_signal.shape[1], 1, ch + 1, sharey=None if ch == 0 else plt.gca())
-            plt.plot(trimmed_signal[:, ch])
-            plt.title(f'Trimmed Input Peaks - Channel {ch+1}')
-            plt.xlabel('Sample')
-            plt.grid(True)
-            if ch == 0:
-                plt.ylabel('Amplitude')
-        plt.tight_layout()
-        plt.savefig('trimmed_input.png')
-        plt.close()
+        # # plot trimmed input peaks 
+        # plt.figure(figsize=(10, 12))
+        # for ch in range(trimmed_signal.shape[1]):
+        #     ax = plt.subplot(trimmed_signal.shape[1], 1, ch + 1, sharey=None if ch == 0 else plt.gca())
+        #     plt.plot(trimmed_signal[:, ch])
+        #     plt.title(f'Trimmed Input Peaks - Channel {ch+1}')
+        #     plt.xlabel('Sample')
+        #     plt.grid(True)
+        #     if ch == 0:
+        #         plt.ylabel('Amplitude')
+        # plt.tight_layout()
+        # plt.savefig('trimmed_input.png')
+        # plt.close()
 
 
         start_time_3 = time.time()
@@ -339,7 +339,7 @@ class AudioProcessor:
         #     freqrms_list.append(freqrms_ch)
         # centrefreqs = np.array(centrefreqs_list).T
         # freqrms = np.array(freqrms_list).T
-
+        
         centrefreqs, freqrms = calc_native_freqwise_rms(in_sig[:, self.ref], self.fs)
         freqwise_Parms = freqrms/self.interp_sensitivity
         

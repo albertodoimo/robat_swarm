@@ -107,7 +107,7 @@ class RobotMove():
                         self.robot["leds.bottom.left"] = [255, 0, 0]  
                         self.robot["leds.top"] = [255, 0, 0]                  
                         self.rotate_right(angle)
-                        self.rotate_right(angle)
+                        # self.rotate_right(angle)
                         
                     else:
                         print('6: Positive angle received, rotating left')
@@ -115,7 +115,7 @@ class RobotMove():
                         self.robot["leds.bottom.left"] = [255, 0, 0]
                         self.robot["leds.top"] = [255, 0, 0]                 
                         self.rotate_left(angle)
-                        self.rotate_left(angle)
+                        # self.rotate_left(angle)
 
                 else:
                     pass
@@ -219,8 +219,8 @@ class RobotMove():
 
     def check_stop_all_motion(self):
         if self.robot is not None:
-            #print(f"Prox 0: {self.robot['prox.ground.delta'][0]}, Prox 1: {self.robot['prox.ground.delta'][1]}")
-            if self.robot['prox.ground.delta'][0] < 1 or self.robot['prox.ground.delta'][1] < 10:
+            # print(f"Prox 0: {self.robot['prox.ground.delta'][0]}, Prox 1: {self.robot['prox.ground.delta'][1]}")
+            if self.robot['prox.ground.delta'][0] < 10 or self.robot['prox.ground.delta'][1] < 10:
                 #print("Robot lifted")
                 return True
         else:
