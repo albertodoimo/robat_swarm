@@ -27,7 +27,7 @@ fs = 48000
 t_tone = np.linspace(0, tone_durn, int(fs*tone_durn))
 chirp = signal.chirp(t_tone, 20e3, t_tone[-1], 2e2)
 chirp *= signal.windows.hann(chirp.size)
-output_chirp = np.concatenate((chirp, np.zeros((int(fs*0.02)))))
+output_chirp = np.concatenate((chirp, np.zeros((int(fs*0.005)))))
 
 plt.figure(figsize=(10, 6))
 t_audio = np.linspace(0, output_chirp.shape[0]/fs, output_chirp.shape[0])
@@ -70,7 +70,7 @@ all_input_data = queue.Queue() # Creates a queue object to store input data
 start_time = time.time()
 try:    
     with stream_inout:
-        while (time.time() - start_time) < 0.5:
+        while (time.time() - start_time) < 0.15:
             pass
     stream_inout.stop()
 except :

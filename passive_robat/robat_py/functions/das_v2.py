@@ -46,7 +46,7 @@ def das_filter(y, fs, nch, d, bw, theta, c=343, wlen=64, show=False):
   
   time2 = time.time()
   
-  print('STFT computation time:', time2 - time1)
+  # print('STFT computation time:', time2 - time1)
 
   # speed version of DAS 
   band_idxs = np.where((f_spec_axis >= bw[0]) & (f_spec_axis <= bw[1]))[0]
@@ -66,7 +66,7 @@ def das_filter(y, fs, nch, d, bw, theta, c=343, wlen=64, show=False):
 
       if show:
           ax.plot(theta_rad, 10 * np.log10(np.abs(p_i)), label=f'{bands[b_idx]:.1f} Hz')
-  print('DAS computation time 1 :', time.time() - time2)
+  # print('DAS computation time 1 :', time.time() - time2)
   mag_p = np.abs(p)/len(bands)
 
   # # normal version 

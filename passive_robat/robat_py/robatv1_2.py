@@ -26,7 +26,6 @@ import threading
 import pandas as pd 
 import netifaces as ni
 
-
 from thymiodirect import Connection 
 from thymiodirect import Thymio
 
@@ -40,9 +39,7 @@ from functions.detect_peaks import detect_peaks
 from AudioProcessor import AudioProcessor
 from RobotMove import RobotMove
 from shared_queues import angle_queue, level_queue
-
 # Create queues for storing data
-shared_audio_queue = queue.Queue()
 recording_bool = False  # Set to True to record audio, False to just process audio without recording
 print('imports done')
 
@@ -56,13 +53,13 @@ raspi_local_ip = ni.ifaddresses('wlan0')[2][0]['addr']
 print('raspi_local_ip =', raspi_local_ip)
 
 # Parameters for the DOA algorithms
-trigger_level =  60 # dB SPL
-critical_level = 65 # dB SPL
+trigger_level =  70 # dB SPL
+critical_level = 77 # dB SPL
 c = 343   # speed of sound
 fs = 48000
 
 rec_samplerate = 48000
-input_buffer_time = 0.1 # seconds
+input_buffer_time = 0.04 # seconds
 block_size = int(input_buffer_time*fs)  #used for the shared queue from which the doa is computed, not anymore for the output stream
 channels = 5
 mic_spacing = 0.018 #m
@@ -84,12 +81,12 @@ echo = pra.linear_2D_array(center=[(channels-1)*mic_spacing//2,0], M=channels, p
 
 # Parameters for the DAS algorithm
 theta_das = np.linspace(-90, 90, 61) # angles resolution for DAS spectrum
-N_peaks = 2 # Number of peaks to detect in DAS spectrum
+N_peaks = 1 # Number of peaks to detect in DAS spectrum
 
 # Parameters for the chirp signal
 duration_out = 10e-3  # Duration in seconds
 silence_pre = 0 # [ms] can probably pushed to 20 
-silence_post = 60 # [ms] can probably pushed to 20
+silence_post = 110 # [ms] can probably pushed to 20
 amplitude = 0.5 # Amplitude of the chirp
 
 t = np.linspace(0, duration_out, int(fs*duration_out))
@@ -254,12 +251,13 @@ if __name__ == '__main__':
 
     move_thread = threading.Thread(target=robot_move.audio_move, daemon = True)
     move_thread.start()
-    event = threading.Event()
-
+    event = threading.Event() 
+    
     try:
         while True:
+            start_time = time.time() 
             event.clear()
-            start_time = time.time()      
+            # print('start_time =', start_time)  
             with sd.OutputStream(samplerate=fs,
                                 blocksize=0, 
                                 device=usb_fireface_index, 
@@ -267,37 +265,40 @@ if __name__ == '__main__':
                                 callback=audio_processor.callback_out, finished_callback=event.set, latency='low') as out_stream:
                                     with out_stream:
                                         event.wait()
-                                        print('event time =', time.time() - start_time)
+                                        
+                                        # print('event time =', time.time() - start_time)
                                         if method == 'CC':
                                             time.sleep(input_buffer_time*2.3)
-            print('out time =', time.time() - start_time)  
-            time.sleep(0.25)                     
+                                    
+
+            # print('out time =', time.time() - start_time)  
+            # time.sleep(0.25)                     
             start_time_1 = time.time()
               # Allow some time for the audio input to be processed
             if method == 'CC':
-                  # Adjust this sleep time as needed
-                # print('0 time =', time.time() - start_time_1) 
                 args.angle, dB_SPL_level = audio_processor.update()  
                 angle_queue.put(args.angle)
                 level_queue.put(dB_SPL_level)
-
 
                 if isinstance(args.angle, (int, float, np.number)):
                     if np.isnan(args.angle):
                         angle_queue.put(None)
 
             elif method == 'DAS':
-
                 args.angle, dB_SPL_level = audio_processor.update_das()
+
+                # print(time.time() - start_time_1, 'DAS time')
+                # print(time.time() , 'end time')
                 angle_queue.put(args.angle)
                 level_queue.put(dB_SPL_level)
+
 
             else:
                 print('No valid method provided')
                 robot_move.stop()
 
 
-            print('in time =', time.time() - start_time_1)
+            # print('in time =', time.time() - start_time_1)
         else:
             robot_move.stop()
 

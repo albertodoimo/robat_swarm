@@ -25,12 +25,9 @@ import datetime
 import time
 import random
 import os
-import threading
 import pandas as pd 
 import netifaces as ni
 import time
-
-
 
 # Stream callback function
 class AudioProcessor:
@@ -230,7 +227,6 @@ class AudioProcessor:
             return avar_theta, dB_SPL_level
 
     def update_das(self):
-
         start_time = time.time()
         in_buffer = self.buffer
         # print('buffer queue time seconds=', start_time_1 - start_time)
@@ -280,7 +276,7 @@ class AudioProcessor:
 
         max_envelope_idx = np.argmax(filtered_envelope)
         max_envelope_value = filtered_envelope[max_envelope_idx]
-        print('Max envelope value:', max_envelope_value)
+        # print('Max envelope value:', max_envelope_value)
 
         # Trim a 10 ms part around the max
         trim_ms = 10
@@ -306,7 +302,7 @@ class AudioProcessor:
 
 
         start_time_3 = time.time()
-        print('matched filter time seconds=', start_time_3 - start_time_2)
+        # print('matched filter time seconds=', start_time_3 - start_time_2)
 
         # Plot matched filtered signal and detected peaks for the reference channel
         # plt.figure(figsize=(10, 4))
@@ -344,7 +340,7 @@ class AudioProcessor:
         freqwise_Parms = freqrms/self.interp_sensitivity
         
         start_time_4 = time.time()
-        print('rms freqwise time =', start_time_4 - start_time_3)
+        # print('rms freqwise time =', start_time_4 - start_time_3)
         # # Calculate and save the average noise spectrum (ANS) figure
 
         # plt.figure(figsize=(10, 4))
@@ -368,7 +364,7 @@ class AudioProcessor:
         dB_SPL_level = pascal_to_dbspl(total_rms_freqwise_Parms) #dB SPL level for reference channel
         print('db SPL:', dB_SPL_level)
 
-        print('time to calculate dB SPL =', time.time() - start_time_4)
+        # print('time to calculate dB SPL =', time.time() - start_time_4)
 
         start_time_5 = time.time()
         theta, spatial_resp, f_spec_axis, spectrum, bands = das_filter(trimmed_signal, self.fs, self.channels, self.mic_spacing, [self.highpass_freq, self.lowpass_freq], theta=self.theta_das)
@@ -385,7 +381,7 @@ class AudioProcessor:
         # plt.close()
 
         start_time_6 = time.time()
-        print('das computation =', start_time_6 - start_time_5)
+        # print('das computation =', start_time_6 - start_time_5)
 
         #spatial_resp = gaussian_filter1d(spatial_resp, sigma=4)
         peaks, _ = signal.find_peaks(spatial_resp)  # Adjust height as needed
@@ -398,14 +394,13 @@ class AudioProcessor:
         top_n_peak_indices = np.argsort(peak_heights)[-N:]  # Indices of the N largest peaks # Indices of the N largest peaks
         top_n_peak_indices = top_n_peak_indices[::-1]
         peak_angles = theta[peaks[top_n_peak_indices]]  # Corresponding angles
-        print('peak angles', peak_angles, 'peak heights', peak_heights[top_n_peak_indices])
+        print('peak angles', peak_angles, 'peak heights', peak_heights[top_n_peak_indices], '\n')
 
         end_time = time.time()
 
-        print('peak finding =', end_time - start_time_6)
+        # print('peak finding =', end_time - start_time_6)
 
-        print('update time seconds =', end_time - start_time)
-
+        # print('update time seconds =', end_time - start_time)
         if dB_SPL_level > self.trigger_level or dB_SPL_level > self.critical_level:
             return peak_angles[0], dB_SPL_level
         else:

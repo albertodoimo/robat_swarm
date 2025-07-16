@@ -90,19 +90,19 @@ class RobotMove():
                     self.robot["leds.top"] = [0, 0, 255]
                     self.robot["leds.bottom.right"] = [0, 0, 255]
                     self.robot["leds.bottom.left"] = [0, 0, 255]
-                    print('2.1: angle=', angle)
+                    # print('2.1: angle=', angle)
                     if angle < 0:
-                        print('3: Negative angle received, rotating left')
+                        # print('3: Negative angle received, rotating left')
                         self.rotate_left(angle)
                     else:
-                        print('4: Positive or zero angle received, rotating right')
+                        # print('4: Positive or zero angle received, rotating right')
                         self.rotate_right(angle)
                 elif level is not None and level > self.critical_level:
                     self.robot["leds.top"] = [255, 0, 0]
                     self.robot["leds.bottom.right"] = [255, 0, 0]
                     self.robot["leds.bottom.left"] = [255, 0, 0]
                     if angle < 0:
-                        print('5: Negative angle received, rotating right')
+                        # print('5: Negative angle received, rotating right')
                         self.robot["leds.bottom.right"] = [255, 0, 0]
                         self.robot["leds.bottom.left"] = [255, 0, 0]  
                         self.robot["leds.top"] = [255, 0, 0]                  
@@ -110,7 +110,7 @@ class RobotMove():
                         # self.rotate_right(angle)
                         
                     else:
-                        print('6: Positive angle received, rotating left')
+                        # print('6: Positive angle received, rotating left')
                         self.robot["leds.bottom.right"] = [255, 0, 0]
                         self.robot["leds.bottom.left"] = [255, 0, 0]
                         self.robot["leds.top"] = [255, 0, 0]                 
