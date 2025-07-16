@@ -53,8 +53,8 @@ raspi_local_ip = ni.ifaddresses('wlan0')[2][0]['addr']
 print('raspi_local_ip =', raspi_local_ip)
 
 # Parameters for the DOA algorithms
-trigger_level =  70 # dB SPL
-critical_level = 77 # dB SPL
+trigger_level =  64 # dB SPL
+critical_level = 74 # dB SPL
 c = 343   # speed of sound
 fs = 48000
 
@@ -148,16 +148,9 @@ frequency_band = [2e3, 20e3] # min, max frequency to do the compensation Hz
 tgtmic_relevant_freqs = np.logical_and(centrefreqs>=frequency_band[0],
                             centrefreqs<=frequency_band[1])
 # Thymio movement parameters
-max_speed = 200 #to be verified 
 
 # Straight speed
 speed = 100 
-#print('\nspeed = ',speed, '\n')
-
-# Turning speed
-prop_turn_speed = 50
-turn_speed = 100 
-waiturn = 200 #turning time ms
 
 left_sensor_threshold = 100
 right_sensor_threshold = 100	
@@ -237,7 +230,7 @@ if __name__ == '__main__':
     # Create instances of the AudioProcessor and RobotMove classes
     audio_processor = AudioProcessor(fs, channels, block_size, data, args, trigger_level, critical_level, mic_spacing, ref, highpass_freq, lowpass_freq, theta_das, N_peaks,
                                       usb_fireface_index, args.subtype, interp_sensitivity, tgtmic_relevant_freqs, args.filename, args.rec_samplerate, sos, sweep)
-    robot_move = RobotMove(speed, turn_speed, left_sensor_threshold, right_sensor_threshold, critical_level, trigger_level, ground_sensors_bool = True)
+    robot_move = RobotMove(speed, left_sensor_threshold, right_sensor_threshold, critical_level, trigger_level, ground_sensors_bool = True)
     
     # Create threads for the audio input and recording
     if recording_bool == True:
