@@ -84,7 +84,7 @@ theta_das = np.linspace(-90, 90, 61) # angles resolution for DAS spectrum
 N_peaks = 1 # Number of peaks to detect in DAS spectrum
 
 # Parameters for the chirp signal
-duration_out = 10e-3  # Duration in seconds
+duration_out = 20e-3  # Duration in seconds
 silence_pre = 0 # [ms] can probably pushed to 20 
 silence_post = 110 # [ms] can probably pushed to 20
 amplitude = 0.5 # Amplitude of the chirp
@@ -135,7 +135,10 @@ sos = signal.butter(1, cutoff, 'hp', fs=fs, output='sos')
 sensitivity_path = 'passive_robat/robat_py/Knowles_SPH0645LM4H-B_sensitivity.csv'
 sensitivity = pd.read_csv(sensitivity_path)
 
-in_sig = np.zeros(block_size, dtype=np.float32)  # Initialize the buffer for the audio input stream
+analyzed_buffer_time = 0.01
+block_size_analyzed_buffer = int(analyzed_buffer_time * fs)
+
+in_sig = np.zeros(block_size_analyzed_buffer, dtype=np.float32)  # Initialize the buffer for the audio input stream
 print('in_sig shape:', np.shape(in_sig))
 centrefreqs, freqrms = calc_native_freqwise_rms(in_sig, fs)
 
@@ -151,6 +154,7 @@ tgtmic_relevant_freqs = np.logical_and(centrefreqs>=frequency_band[0],
 
 # Straight speed
 speed = 100 
+turn_speed = 150
 
 left_sensor_threshold = 100
 right_sensor_threshold = 100	
@@ -228,9 +232,9 @@ if __name__ == '__main__':
         print(args.samplerate)
 
     # Create instances of the AudioProcessor and RobotMove classes
-    audio_processor = AudioProcessor(fs, channels, block_size, data, args, trigger_level, critical_level, mic_spacing, ref, highpass_freq, lowpass_freq, theta_das, N_peaks,
+    audio_processor = AudioProcessor(fs, channels, block_size, analyzed_buffer_time, data, args, trigger_level, critical_level, mic_spacing, ref, highpass_freq, lowpass_freq, theta_das, N_peaks,
                                       usb_fireface_index, args.subtype, interp_sensitivity, tgtmic_relevant_freqs, args.filename, args.rec_samplerate, sos, sweep)
-    robot_move = RobotMove(speed, left_sensor_threshold, right_sensor_threshold, critical_level, trigger_level, ground_sensors_bool = True)
+    robot_move = RobotMove(speed, turn_speed, left_sensor_threshold, right_sensor_threshold, critical_level, trigger_level, ground_sensors_bool = True)
     
     # Create threads for the audio input and recording
     if recording_bool == True:
@@ -250,7 +254,7 @@ if __name__ == '__main__':
         while True:
             start_time = time.time() 
             event.clear()
-            # print('start_time =', start_time)  
+            print('start_time =', start_time)  
             with sd.OutputStream(samplerate=fs,
                                 blocksize=0, 
                                 device=usb_fireface_index, 
@@ -264,7 +268,7 @@ if __name__ == '__main__':
                                             time.sleep(input_buffer_time*2.3)
                                     
 
-            # print('out time =', time.time() - start_time)  
+            print('out time =', time.time() - start_time)  
             # time.sleep(0.25)                     
             start_time_1 = time.time()
               # Allow some time for the audio input to be processed
@@ -291,7 +295,7 @@ if __name__ == '__main__':
                 robot_move.stop()
 
 
-            # print('in time =', time.time() - start_time_1)
+            print('in time =', time.time() - start_time_1)
         else:
             robot_move.stop()
 

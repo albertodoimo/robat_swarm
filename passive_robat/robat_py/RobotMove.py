@@ -6,8 +6,9 @@ import time
 import random
 
 class RobotMove():
-    def __init__(self, forward_speed, left_sensor_threshold, right_sensor_threshold, critical_level, trigger_level, ground_sensors_bool = True):
+    def __init__(self, forward_speed, turn_speed, left_sensor_threshold, right_sensor_threshold, critical_level, trigger_level, ground_sensors_bool = True):
         self.forward_speed = forward_speed
+        self.turn_speed = turn_speed    
         self.left_sensor_threshold = left_sensor_threshold
         self.right_sensor_threshold = right_sensor_threshold
         self.ground_sensors_bool = ground_sensors_bool
@@ -37,11 +38,11 @@ class RobotMove():
 
         self.stop_bool = False
 
-    def angle_to_time(self, angle, forward_speed):
+    def angle_to_time(self, angle, speed):
         #calculate the time needed to turn the robot by a certain angle
         A = 612.33
         B = -0.94
-        t = A*forward_speed**B    
+        t = A*speed**B    
         return t * abs(angle) / 360 # time to turn by angle in seconds
 
     def audio_move(self):
@@ -153,29 +154,29 @@ class RobotMove():
     def rotate_right(self, angle):
         if self.robot is not None:
             # print( "rotate right with angle:", angle)
-            counter = self.angle_to_time(angle, self.forward_speed)
+            counter = self.angle_to_time(angle, self.turn_speed)
             start_time = time.time()
             while time.time() - start_time < counter:
                 if self.check_stop_all_motion():
                     self.stop_bool = True
                     break
                 #print("rotate right with angle:", angle)
-                self.robot['motor.left.target']= self.forward_speed + self.forward_speed//2
-                self.robot['motor.right.target']= -self.forward_speed 
+                self.robot['motor.left.target']= self.turn_speed + self.turn_speed//2
+                self.robot['motor.right.target']= -self.turn_speed 
         else:
             self.stop()
 
     def rotate_left(self, angle):
         if self.robot is not None:
-            counter = self.angle_to_time(angle, self.forward_speed)
+            counter = self.angle_to_time(angle, self.turn_speed)
             start_time = time.time()
             while time.time() - start_time < counter:
                 if self.check_stop_all_motion():
                     self.stop_bool = True
                     break
                 #print("rotate left with angle:", angle)
-                self.robot['motor.left.target']= -self.forward_speed 
-                self.robot['motor.right.target']= self.forward_speed + self.forward_speed//2
+                self.robot['motor.left.target']= -self.turn_speed 
+                self.robot['motor.right.target']= self.turn_speed + self.turn_speed//2
 
         else:
             self.stop()
@@ -215,27 +216,27 @@ class RobotMove():
             elif self.robot['prox.ground.reflected'][0] > self.left_sensor_threshold:
                 # Left sensor detects the line
                 #print('line detected L')
-                counter = self.angle_to_time(90, self.forward_speed)
+                counter = self.angle_to_time(90, self.turn_speed)
                 start_time = time.time()
                 while time.time() - start_time < counter:
                     if self.check_stop_all_motion():
                         #print("stop all motion: rotate right")
                         self.stop_bool = True
                         break
-                    self.robot['motor.left.target'] = self.forward_speed
-                    self.robot['motor.right.target'] = -self.forward_speed
+                    self.robot['motor.left.target'] = self.turn_speed
+                    self.robot['motor.right.target'] = -self.turn_speed
 
             elif self.robot['prox.ground.reflected'][1] > self.right_sensor_threshold:
                 # Right sensor detects the line   
                 #print('line detected R')
-                counter = self.angle_to_time(90, self.forward_speed)
+                counter = self.angle_to_time(90, self.turn_speed)
                 start_time = time.time()
                 while time.time() - start_time < counter:
                     if self.check_stop_all_motion():
                         self.stop_bool = True
                         break
-                    self.robot['motor.left.target'] = -self.forward_speed
-                    self.robot['motor.right.target'] = self.forward_speed
+                    self.robot['motor.left.target'] = -self.turn_speed
+                    self.robot['motor.right.target'] = self.turn_speed
 
         else:
             self.stop()

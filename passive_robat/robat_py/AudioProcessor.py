@@ -31,11 +31,12 @@ import time
 
 # Stream callback function
 class AudioProcessor:
-    def __init__(self, fs, channels, block_size, data, args, trigger_level, critical_level, mic_spacing, ref, highpass_freq, lowpass_freq, theta_das,
+    def __init__(self, fs, channels, block_size, analyzed_buffer_time, data, args, trigger_level, critical_level, mic_spacing, ref, highpass_freq, lowpass_freq, theta_das,
                  N_peaks, usb_fireface_index, subtype, interp_sensitivity, tgtmic_relevant_freqs, filename, rec_samplerate, sos, sweep):
         self.fs = fs
         self.channels = channels
         self.block_size = block_size
+        self.analyzed_buffer_time = analyzed_buffer_time
         self.data = data
         self.args = args
         self.trigger_level = trigger_level
@@ -278,27 +279,43 @@ class AudioProcessor:
         max_envelope_value = filtered_envelope[max_envelope_idx]
         # print('Max envelope value:', max_envelope_value)
 
-        # Trim a 10 ms part around the max
-        trim_ms = 10
-        trim_samples = int(self.fs * trim_ms / 1000)
+        # Trim around the max
+        trim_ms = self.analyzed_buffer_time # ms
+        print('trim_ms', trim_ms)
+        trim_samples = int(self.fs * trim_ms)
+        print('trim_samples', trim_samples)
         half_trim = trim_samples // 2
-        start_idx = max(0, max_envelope_idx - half_trim)
-        end_idx = min(in_sig.shape[0], max_envelope_idx + half_trim)
+        trimmed_signal = np.zeros((trim_samples, in_sig.shape[1]), dtype=in_sig.dtype)
+        
+        # Ensure trimmed_signal always has exactly trim_samples rows (matching trim_ms duration)
+        if max_envelope_idx - half_trim < 0:
+            start_idx = 0
+            end_idx = trim_samples
+            print('1')
+        elif max_envelope_idx + half_trim > in_sig.shape[0]:
+            end_idx = in_sig.shape[0]
+            start_idx = end_idx - trim_samples
+            print('2')
+        else:
+            start_idx = max_envelope_idx - half_trim
+            end_idx = start_idx + trim_samples
+            # trimmed_signal = in_sig[start_idx:end_idx, :]
+            print('3')
         trimmed_signal = in_sig[start_idx:end_idx, :]
-    
-        # # plot trimmed input peaks 
-        # plt.figure(figsize=(10, 12))
-        # for ch in range(trimmed_signal.shape[1]):
-        #     ax = plt.subplot(trimmed_signal.shape[1], 1, ch + 1, sharey=None if ch == 0 else plt.gca())
-        #     plt.plot(trimmed_signal[:, ch])
-        #     plt.title(f'Trimmed Input Peaks - Channel {ch+1}')
-        #     plt.xlabel('Sample')
-        #     plt.grid(True)
-        #     if ch == 0:
-        #         plt.ylabel('Amplitude')
-        # plt.tight_layout()
-        # plt.savefig('trimmed_input.png')
-        # plt.close()
+
+        # plot trimmed input peaks 
+        plt.figure(figsize=(10, 12))
+        for ch in range(trimmed_signal.shape[1]):
+            ax = plt.subplot(trimmed_signal.shape[1], 1, ch + 1, sharey=None if ch == 0 else plt.gca())
+            plt.plot(trimmed_signal[:, ch])
+            plt.title(f'Trimmed Input Peaks - Channel {ch+1}')
+            plt.xlabel('Sample')
+            plt.grid(True)
+            if ch == 0:
+                plt.ylabel('Amplitude')
+        plt.tight_layout()
+        plt.savefig('trimmed_input.png')
+        plt.close()
 
 
         start_time_3 = time.time()
@@ -336,7 +353,7 @@ class AudioProcessor:
         # centrefreqs = np.array(centrefreqs_list).T
         # freqrms = np.array(freqrms_list).T
         
-        centrefreqs, freqrms = calc_native_freqwise_rms(in_sig[:, self.ref], self.fs)
+        centrefreqs, freqrms = calc_native_freqwise_rms(trimmed_signal[:, self.ref], self.fs)
         freqwise_Parms = freqrms/self.interp_sensitivity
         
         start_time_4 = time.time()
