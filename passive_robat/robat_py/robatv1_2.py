@@ -253,8 +253,7 @@ if __name__ == '__main__':
     try:
         while True:
             start_time = time.time() 
-            event.clear()
-            print('start_time =', start_time)  
+            event.clear()  
             with sd.OutputStream(samplerate=fs,
                                 blocksize=0, 
                                 device=usb_fireface_index, 
@@ -268,7 +267,7 @@ if __name__ == '__main__':
                                             time.sleep(input_buffer_time*2.3)
                                     
 
-            print('out time =', time.time() - start_time)  
+            # print('out time =', time.time() - start_time)  
             # time.sleep(0.25)                     
             start_time_1 = time.time()
               # Allow some time for the audio input to be processed
@@ -295,7 +294,7 @@ if __name__ == '__main__':
                 robot_move.stop()
 
 
-            print('in time =', time.time() - start_time_1)
+            # print('in time =', time.time() - start_time_1)
         else:
             robot_move.stop()
 

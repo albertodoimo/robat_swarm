@@ -281,9 +281,7 @@ class AudioProcessor:
 
         # Trim around the max
         trim_ms = self.analyzed_buffer_time # ms
-        print('trim_ms', trim_ms)
         trim_samples = int(self.fs * trim_ms)
-        print('trim_samples', trim_samples)
         half_trim = trim_samples // 2
         trimmed_signal = np.zeros((trim_samples, in_sig.shape[1]), dtype=in_sig.dtype)
         
@@ -291,31 +289,27 @@ class AudioProcessor:
         if max_envelope_idx - half_trim < 0:
             start_idx = 0
             end_idx = trim_samples
-            print('1')
         elif max_envelope_idx + half_trim > in_sig.shape[0]:
             end_idx = in_sig.shape[0]
             start_idx = end_idx - trim_samples
-            print('2')
         else:
             start_idx = max_envelope_idx - half_trim
             end_idx = start_idx + trim_samples
-            # trimmed_signal = in_sig[start_idx:end_idx, :]
-            print('3')
         trimmed_signal = in_sig[start_idx:end_idx, :]
 
-        # plot trimmed input peaks 
-        plt.figure(figsize=(10, 12))
-        for ch in range(trimmed_signal.shape[1]):
-            ax = plt.subplot(trimmed_signal.shape[1], 1, ch + 1, sharey=None if ch == 0 else plt.gca())
-            plt.plot(trimmed_signal[:, ch])
-            plt.title(f'Trimmed Input Peaks - Channel {ch+1}')
-            plt.xlabel('Sample')
-            plt.grid(True)
-            if ch == 0:
-                plt.ylabel('Amplitude')
-        plt.tight_layout()
-        plt.savefig('trimmed_input.png')
-        plt.close()
+        # # plot trimmed input peaks 
+        # plt.figure(figsize=(10, 12))
+        # for ch in range(trimmed_signal.shape[1]):
+        #     ax = plt.subplot(trimmed_signal.shape[1], 1, ch + 1, sharey=None if ch == 0 else plt.gca())
+        #     plt.plot(trimmed_signal[:, ch])
+        #     plt.title(f'Trimmed Input Peaks - Channel {ch+1}')
+        #     plt.xlabel('Sample')
+        #     plt.grid(True)
+        #     if ch == 0:
+        #         plt.ylabel('Amplitude')
+        # plt.tight_layout()
+        # plt.savefig('trimmed_input.png')
+        # plt.close()
 
 
         start_time_3 = time.time()
