@@ -12,7 +12,6 @@ print('import libraries...')
 
 import numpy as np
 import matplotlib.pyplot as plt
-import pyroomacoustics as pra
 import scipy.signal as signal 
 import sounddevice as sd
 import soundfile as sf
@@ -25,6 +24,7 @@ import os
 import threading
 import pandas as pd 
 import netifaces as ni
+import csv
 
 from thymiodirect import Connection 
 from thymiodirect import Thymio
@@ -39,9 +39,13 @@ from functions.detect_peaks import detect_peaks
 from AudioProcessor import AudioProcessor
 from RobotMove import RobotMove
 from shared_queues import angle_queue, level_queue
-# Create queues for storing data
-recording_bool = False  # Set to True to record audio, False to just process audio without recording
 print('imports done')
+
+# Create queues for storing data
+timestamp_queue = queue.Queue()
+
+timestamp_bool = True  # Set to True to save timestamps, False to not save timestamps
+recording_bool = False  # Set to True to record audio, False to just process audio without recording
 
 # Get the index of the USB card
 usb_fireface_index = get_card(sd.query_devices())
@@ -53,8 +57,8 @@ raspi_local_ip = ni.ifaddresses('wlan0')[2][0]['addr']
 print('raspi_local_ip =', raspi_local_ip)
 
 # Parameters for the DOA algorithms
-trigger_level =  64 # dB SPL
-critical_level = 74 # dB SPL
+trigger_level =  70 # dB SPL
+critical_level = 75 # dB SPL
 c = 343   # speed of sound
 fs = 48000
 
@@ -76,8 +80,8 @@ method = 'DAS'
 avar_theta = None
 theta_values   = []
 
-# Parameters for the PRA algorithm
-echo = pra.linear_2D_array(center=[(channels-1)*mic_spacing//2,0], M=channels, phi=0, d=mic_spacing)
+# # Parameters for the PRA algorithm
+# echo = pra.linear_2D_array(center=[(channels-1)*mic_spacing//2,0], M=channels, phi=0, d=mic_spacing)
 
 # Parameters for the DAS algorithm
 theta_das = np.linspace(-90, 90, 61) # angles resolution for DAS spectrum
@@ -230,6 +234,18 @@ if __name__ == '__main__':
             timenow = datetime.datetime.now()
             args.filename = name
         print(args.samplerate)
+    
+    if timestamp_bool == True:
+        # Create folder for saving timestamps
+        time1 = startime.strftime('%Y-%m-%d')
+        time2 = startime.strftime('_%Y-%m-%d__%H-%M-%S')
+        save_path = '/home/thymio/robat_py/robat_swarm/passive_robat/robat_py/recordings'
+        folder_name = str(raspi_local_ip)
+        folder_path_data = os.path.join(save_path, folder_name, time1,'data/')
+        os.makedirs(folder_path_data, exist_ok=True)
+
+        name = 'TIMESTAMPS_' + str(raspi_local_ip) + str(time2) + '.csv'
+        args.timestamp_filename = os.path.join(folder_path_data, name)
 
     # Create instances of the AudioProcessor and RobotMove classes
     audio_processor = AudioProcessor(fs, channels, block_size, analyzed_buffer_time, data, args, trigger_level, critical_level, mic_spacing, ref, highpass_freq, lowpass_freq, theta_das, N_peaks,
@@ -273,6 +289,10 @@ if __name__ == '__main__':
               # Allow some time for the audio input to be processed
             if method == 'CC':
                 args.angle, dB_SPL_level = audio_processor.update()  
+                # timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S:%f')[:-3]  # Format timestamp to milliseconds
+                timestamp = datetime.datetime.timestamp(datetime.datetime.now())# POSIX timestamp
+                timestamp_queue.put([timestamp,dB_SPL_level[0],args.angle])  # Put the timestamp in the queue (no block=False, keeps all values)
+               
                 angle_queue.put(args.angle)
                 level_queue.put(dB_SPL_level)
 
@@ -281,7 +301,11 @@ if __name__ == '__main__':
                         angle_queue.put(None)
 
             elif method == 'DAS':
+
                 args.angle, dB_SPL_level = audio_processor.update_das()
+                # timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S:%f')[:-3]  # Format timestamp to milliseconds
+                timestamp = datetime.datetime.timestamp(datetime.datetime.now())# POSIX timestamp
+                timestamp_queue.put([timestamp,dB_SPL_level[0],args.angle])  # Put the timestamp in the queue (no block=False, keeps all values)
 
                 # print(time.time() - start_time_1, 'DAS time')
                 # print(time.time() , 'end time')
@@ -301,13 +325,34 @@ if __name__ == '__main__':
     except Exception as e:
         parser.exit(type(e).__name__ + ': ' + str(e))
         robot_move.stop()
+        full_path = os.path.join(folder_path_data, args.timestamp_filename)
+        with open(full_path, "w", newline='') as file:
+            writer = csv.writer(file)
+            # Write all items from the queue to the CSV file
+            while not timestamp_queue.empty():
+                writer.writerow(timestamp_queue.get())
+        print(f"Matrix has been saved as csv to {folder_path_data}\n")
     except Exception as err:
         # Stop robot
         robot_move.stop()
+        full_path = os.path.join(folder_path_data, args.timestamp_filename)
+        with open(full_path, "w", newline='') as file:
+            writer = csv.writer(file)
+            # Write all items from the queue to the CSV file
+            while not timestamp_queue.empty():
+                writer.writerow(timestamp_queue.get())
+        print(f"Matrix has been saved as csv to {folder_path_data}\n")
         print('err:',err)
     except KeyboardInterrupt:
         robot_move.running = False
         robot_move.stop()
+        full_path = os.path.join(folder_path_data, args.timestamp_filename)
+        with open(full_path, "w", newline='') as file:
+            writer = csv.writer(file)
+            # Write all items from the queue to the CSV file
+            while not timestamp_queue.empty():
+                writer.writerow(timestamp_queue.get())
+        print(f"Matrix has been saved as csv to {folder_path_data}\n")
         inputstream_thread.join()
         move_thread.join()
         print('\nRecording finished: ' + repr(args.filename)) 
