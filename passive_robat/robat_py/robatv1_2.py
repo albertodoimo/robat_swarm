@@ -301,17 +301,15 @@ if __name__ == '__main__':
                         angle_queue.put(None)
 
             elif method == 'DAS':
-
-                args.angle, dB_SPL_level = audio_processor.update_das()
                 # timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S:%f')[:-3]  # Format timestamp to milliseconds
                 timestamp = datetime.datetime.timestamp(datetime.datetime.now())# POSIX timestamp
+                args.angle, dB_SPL_level = audio_processor.update_das()
                 timestamp_queue.put([timestamp,dB_SPL_level[0],args.angle])  # Put the timestamp in the queue (no block=False, keeps all values)
 
-                # print(time.time() - start_time_1, 'DAS time')
-                # print(time.time() , 'end time')
+                print(time.time() - start_time_1, 'DAS time')
+                # print(time.time(), 'end time')
                 angle_queue.put(args.angle)
                 level_queue.put(dB_SPL_level)
-
 
             else:
                 print('No valid method provided')
