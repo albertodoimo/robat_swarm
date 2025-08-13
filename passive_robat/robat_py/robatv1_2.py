@@ -45,7 +45,7 @@ print('imports done')
 timestamp_queue = queue.Queue()
 
 timestamp_bool = True  # Set to True to save timestamps, False to not save timestamps
-recording_bool = False  # Set to True to record audio, False to just process audio without recording
+recording_bool = True  # Set to True to record audio, False to just process audio without recording
 
 # Get the index of the USB card
 usb_fireface_index = get_card(sd.query_devices())
@@ -288,11 +288,11 @@ if __name__ == '__main__':
             start_time_1 = time.time()
               # Allow some time for the audio input to be processed
             if method == 'CC':
-                args.angle, dB_SPL_level = audio_processor.update()  
                 # timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S:%f')[:-3]  # Format timestamp to milliseconds
                 timestamp = datetime.datetime.timestamp(datetime.datetime.now())# POSIX timestamp
+                args.angle, dB_SPL_level = audio_processor.update_das()
                 timestamp_queue.put([timestamp,dB_SPL_level[0],args.angle])  # Put the timestamp in the queue (no block=False, keeps all values)
-               
+
                 angle_queue.put(args.angle)
                 level_queue.put(dB_SPL_level)
 
@@ -314,7 +314,6 @@ if __name__ == '__main__':
             else:
                 print('No valid method provided')
                 robot_move.stop()
-
 
             # print('in time =', time.time() - start_time_1)
         else:
