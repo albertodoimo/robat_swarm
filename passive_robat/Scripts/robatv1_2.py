@@ -136,7 +136,9 @@ freq_range = [start_f, end_f]
 cutoff = auto_hipas_freq # [Hz] highpass filter cutoff frequency
 sos = signal.butter(1, cutoff, 'hp', fs=fs, output='sos')
 
-sensitivity_path = 'passive_robat/robat_py/Knowles_SPH0645LM4H-B_sensitivity.csv'
+# Set the path for the sensitivity CSV file relative to the current script location
+script_dir = os.path.dirname(os.path.abspath(__file__))
+sensitivity_path = os.path.join(script_dir, 'Knowles_SPH0645LM4H-B_sensitivity.csv')
 sensitivity = pd.read_csv(sensitivity_path)
 
 analyzed_buffer_time = 0.01
@@ -211,18 +213,19 @@ if __name__ == '__main__':
     startime = datetime.datetime.now()
     args.samplerate = fs
     args.rec_samplerate = rec_samplerate
-    args.angle = 0 
-    av_above_level = -100
+    args.angle = 0
+
+    # Set general save path
+    time1 = startime.strftime('%Y-%m-%d')
+    save_path = '/home/thymio/robat_py/robat_swarm/passive_robat/'
+    folder_name = str(raspi_local_ip)
+    folder_path = os.path.join(save_path,'Data', folder_name, time1)
 
     if recording_bool == True:
         # Create folder for saving recordings
-        time1 = startime.strftime('%Y-%m-%d')
         time2 = startime.strftime('_%Y-%m-%d__%H-%M-%S')
-        save_path = '/home/thymio/robat_py/robat_swarm/passive_robat/robat_py'
-        folder_name = str(raspi_local_ip)
-        folder_path = os.path.join(save_path,'recordings', folder_name, time1)
         os.makedirs(folder_path, exist_ok=True)
-
+        
         name = 'MULTIWAV_' + str(raspi_local_ip) + str(time2) + '.wav'
         args.filename = os.path.join(folder_path, name)
 
@@ -237,11 +240,9 @@ if __name__ == '__main__':
     
     if timestamp_bool == True:
         # Create folder for saving timestamps
-        time1 = startime.strftime('%Y-%m-%d')
         time2 = startime.strftime('_%Y-%m-%d__%H-%M-%S')
-        save_path = '/home/thymio/robat_py/robat_swarm/passive_robat/robat_py/recordings'
-        folder_name = str(raspi_local_ip)
-        folder_path_data = os.path.join(save_path, folder_name, time1,'data/')
+        os.makedirs(folder_path, exist_ok=True)
+        folder_path_data = os.path.join(save_path, 'Data', folder_name, time1)
         os.makedirs(folder_path_data, exist_ok=True)
 
         name = 'TIMESTAMPS_' + str(raspi_local_ip) + str(time2) + '.csv'
@@ -270,6 +271,8 @@ if __name__ == '__main__':
         while True:
             start_time = time.time() 
             event.clear()  
+            timestamp = datetime.datetime.timestamp(datetime.datetime.now().utcnow())# POSIX timestamp
+            timestamp_queue.put([timestamp, 0, 'start'])  # Put the timestamp in the queue (no block=False, keeps all values)
             with sd.OutputStream(samplerate=fs,
                                 blocksize=0, 
                                 device=usb_fireface_index, 
@@ -289,7 +292,7 @@ if __name__ == '__main__':
               # Allow some time for the audio input to be processed
             if method == 'CC':
                 # timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S:%f')[:-3]  # Format timestamp to milliseconds
-                timestamp = datetime.datetime.timestamp(datetime.datetime.now())# POSIX timestamp
+                timestamp = datetime.datetime.timestamp(datetime.datetime.now().utcnow())# POSIX timestamp
                 args.angle, dB_SPL_level = audio_processor.update_das()
                 timestamp_queue.put([timestamp,dB_SPL_level[0],args.angle])  # Put the timestamp in the queue (no block=False, keeps all values)
 

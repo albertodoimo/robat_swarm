@@ -1,0 +1,7 @@
+{
+    "fleet-coder.excludedFolders": [
+        "build",
+        ".git",
+        "Data"
+    ]
+}
