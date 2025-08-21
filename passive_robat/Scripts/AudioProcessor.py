@@ -47,9 +47,7 @@ class AudioProcessor:
         self.lowpass_freq = lowpass_freq
         self.theta_das = theta_das
         self.N_peaks = N_peaks
-        self.q = queue.Queue()
-        self.qq = queue.Queue()
-        self.qqq = queue.Queue()
+        self.ts_queue = queue.Queue()
         self.shared_audio_queue = queue.Queue()
         self.current_frame = 0
         self.usb_fireface_index = usb_fireface_index
@@ -66,6 +64,9 @@ class AudioProcessor:
         with sf.SoundFile(self.filename, mode='x', samplerate=self.rec_samplerate,
                             channels=self.channels, subtype=self.subtype) as file:
             with sd.InputStream(samplerate=self.fs, device=self.usb_fireface_index,channels=self.channels, callback=self.callback_in, blocksize=self.block_size):
+                    timestamp = datetime.datetime.timestamp(datetime.datetime.now(datetime.timezone.utc))
+                    print(f"Recording started at {timestamp}\n")
+                    self.ts_queue.put(timestamp)
                     while True:
                         self.buffer = self.shared_audio_queue.get()
                         file.write(self.buffer)

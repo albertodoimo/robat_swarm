@@ -267,12 +267,20 @@ if __name__ == '__main__':
     move_thread.start()
     event = threading.Event() 
     
+    time2 = startime.strftime('_%Y-%m-%d__%H-%M-%S')
+    os.makedirs(folder_path, exist_ok=True)
+    name = 'TIMESTAMPS_' + str(raspi_local_ip) + str(time2)
+    npy_data = os.path.join(folder_path, name)
+
+    # timestamp_queue.put([audio_processor.ts_queue.get(), 0, 'recording_start'])
+    np.save(npy_data, np.array([audio_processor.ts_queue.get(), 0, 0, 'recording_start'], dtype=object))
     try:
         while True:
             start_time = time.time() 
             event.clear()  
-            timestamp = datetime.datetime.timestamp(datetime.datetime.now().utcnow())# POSIX timestamp
+            timestamp = datetime.datetime.timestamp(datetime.datetime.now(datetime.timezone.utc))# POSIX timestamp
             timestamp_queue.put([timestamp, 0, 'start'])  # Put the timestamp in the queue (no block=False, keeps all values)
+            np.save(npy_data, np.array([timestamp, 0, 'start'], dtype=object))
             with sd.OutputStream(samplerate=fs,
                                 blocksize=0, 
                                 device=usb_fireface_index, 
@@ -289,30 +297,31 @@ if __name__ == '__main__':
             # print('out time =', time.time() - start_time)  
             # time.sleep(0.25)                     
             start_time_1 = time.time()
-              # Allow some time for the audio input to be processed
-            if method == 'CC':
+            if method == 'DAS':
                 # timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S:%f')[:-3]  # Format timestamp to milliseconds
-                timestamp = datetime.datetime.timestamp(datetime.datetime.now().utcnow())# POSIX timestamp
+                timestamp = datetime.datetime.timestamp(datetime.datetime.now(datetime.timezone.utc))# POSIX timestamp
                 args.angle, dB_SPL_level = audio_processor.update_das()
                 timestamp_queue.put([timestamp,dB_SPL_level[0],args.angle])  # Put the timestamp in the queue (no block=False, keeps all values)
+                np.save(npy_data, np.array([timestamp,dB_SPL_level[0],args.angle], dtype=object))                
+                print(time.time() - start_time_1, 'DAS time')
+                # print(time.time(), 'end time')
+                angle_queue.put(args.angle)
+                level_queue.put(dB_SPL_level)
 
+
+            elif method == 'CC':
+                # timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S:%f')[:-3]  # Format timestamp to milliseconds
+                timestamp = datetime.datetime.timestamp(datetime.datetime.now(datetime.timezone.utc))# POSIX timestamp
+
+                args.angle, dB_SPL_level = audio_processor.update_das()
+                timestamp_queue.put([timestamp,dB_SPL_level[0],args.angle])  # Put the timestamp in the queue (no block=False, keeps all values)
+                np.save(npy_data, np.array([timestamp,dB_SPL_level[0],args.angle], dtype=object))                
                 angle_queue.put(args.angle)
                 level_queue.put(dB_SPL_level)
 
                 if isinstance(args.angle, (int, float, np.number)):
                     if np.isnan(args.angle):
                         angle_queue.put(None)
-
-            elif method == 'DAS':
-                # timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S:%f')[:-3]  # Format timestamp to milliseconds
-                timestamp = datetime.datetime.timestamp(datetime.datetime.now())# POSIX timestamp
-                args.angle, dB_SPL_level = audio_processor.update_das()
-                timestamp_queue.put([timestamp,dB_SPL_level[0],args.angle])  # Put the timestamp in the queue (no block=False, keeps all values)
-
-                print(time.time() - start_time_1, 'DAS time')
-                # print(time.time(), 'end time')
-                angle_queue.put(args.angle)
-                level_queue.put(dB_SPL_level)
 
             else:
                 print('No valid method provided')
