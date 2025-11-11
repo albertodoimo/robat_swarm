@@ -33,8 +33,11 @@ class RobotMove():
         print("Robot connected")
 
         if self.ground_sensors_bool:
+            print('\nGround sensors values...\n')
+            time.sleep(2)  # wait for sensors to initialize
             print('ground.delta  L R = ', self.robot['prox.ground.delta'])
             print('ground.reflected  L R = ', self.robot['prox.ground.reflected'])
+            print('\n')
 
         self.stop_bool = False
 
@@ -44,6 +47,80 @@ class RobotMove():
         B = -0.94
         t = A*speed**B    
         return t * abs(angle) / 360 # time to turn by angle in seconds
+    
+    def attraction_only(self):
+        while self.running:
+            try:
+                # Check for a global stop signal (e.g., if the robot is lifted)
+                if self.check_stop_all_motion():
+                    self.stop_bool = True
+                    self.stop()
+                    continue  # Go back to top of loop
+                
+                self.avoid_white_line()
+
+                while not angle_queue.empty():
+                    angle = angle_queue.get()
+                    if angle is not None:
+                        if angle > -22 and angle < 22:
+                            self.robot['leds.circle'] = [255, 0, 0, 0, 255, 0, 0 ,0]
+                        elif angle > 22 and angle < 67:
+                            self.robot['leds.circle'] = [0, 255, 0, 255, 0, 0, 0 ,0]
+                        elif angle > 67:
+                            self.robot['leds.circle'] = [0, 0, 255, 0, 0, 0, 0 ,0 ]
+                        elif angle < -22 and angle > -67:
+                            self.robot['leds.circle'] = [0, 0, 0, 0, 0, 255, 0 ,255]
+                        elif angle < -67:
+                            self.robot['leds.circle'] = [0, 0, 0, 0, 0, 0, 255 ,0]
+
+                    elif angle is None:
+                        #print('Empty queue: no angle value')
+                        self.robot['leds.circle'] = [255, 255, 255, 255, 255, 255, 255 ,255]
+                        self.move_forward()  # Go straight if no angle is available.
+                        continue
+
+                # Flush the level queue similarly to get the latest level value.
+                while not level_queue.empty():
+                    level = level_queue.get()
+
+                # Make a decision based on the latest values.
+
+                if level is not None and level < self.critical_level and level > self.trigger_level:
+                    self.robot["leds.top"] = [0, 0, 255]
+                    self.robot["leds.bottom.right"] = [0, 0, 255]
+                    self.robot["leds.bottom.left"] = [0, 0, 255]
+                    # print('2.1: angle=', angle)
+                    if angle < 0:
+                        # print('3: Negative angle received, rotating left')
+                        self.rotate_left(angle)
+                        # Wait for the rotation to complete before continuing the loop
+                        continue
+                    else:
+                        # print('4: Positive or zero angle received, rotating right')
+                        self.rotate_right(angle)
+                        continue
+                elif level is not None and level > self.critical_level:
+                    self.robot["leds.top"] = [255, 0, 0]
+                    self.robot["leds.bottom.right"] = [255, 0, 0]
+                    self.robot["leds.bottom.left"] = [255, 0, 0]
+                    self.stop()
+
+                else:
+                    pass
+
+                # After executing a turn, go back to moving straight.
+                #print("Returning to forward movement")
+                self.move_forward()
+                level = None
+
+            except Exception as e:
+                #print('Error in audio_move:', e)
+                self.stop_bool = True
+            except KeyboardInterrupt:
+                self.stop()
+        else:
+            self.stop()
+
 
     def audio_move(self):
         while self.running:

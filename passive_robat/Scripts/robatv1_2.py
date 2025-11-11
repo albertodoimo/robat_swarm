@@ -44,7 +44,7 @@ print('imports done')
 # Create queues for storing data
 timestamp_queue = queue.Queue()
 
-timestamp_bool = True  # Set to True to save timestamps, False to not save timestamps
+timestamp_bool = False  # Set to True to save timestamps, False to not save timestamps
 recording_bool = True  # Set to True to record audio, False to just process audio without recording
 
 # Get the index of the USB card
@@ -89,22 +89,19 @@ N_peaks = 1 # Number of peaks to detect in DAS spectrum
 
 # Parameters for the chirp signal
 duration_out = 20e-3  # Duration in seconds
-silence_pre = 0 # [ms] can probably pushed to 20 
 silence_post = 110 # [ms] can probably pushed to 20
 amplitude = 0.5 # Amplitude of the chirp
 
 t = np.linspace(0, duration_out, int(fs*duration_out))
-start_f, end_f = 24e3, 2e2
+start_f, end_f = 24e3, 2e3
 sweep = signal.chirp(t, start_f, t[-1], end_f)
 sweep *= signal.windows.tukey(sweep.size, 0.2)
 sweep *= 0.8
 
-silence_samples_pre = int(silence_pre * fs/1000)
-silence_vec_pre = np.zeros((silence_samples_pre, ))
 silence_samples_post = int(silence_post * fs/1000)
 silence_vec_post = np.zeros((silence_samples_post, ))
 post_silence_sig = np.concatenate((sweep, silence_vec_post))
-full_sig = np.concatenate((silence_vec_pre, post_silence_sig))
+full_sig = post_silence_sig
 
 stereo_sig = np.hstack([full_sig.reshape(-1, 1), full_sig.reshape(-1, 1)])
 data = amplitude * np.float32(stereo_sig)
@@ -129,8 +126,8 @@ auto_hipas_freq = int(343/(2*(mic_spacing*(channels-1))))
 print('HP frequency:', auto_hipas_freq)
 auto_lowpas_freq = int(343/(2*mic_spacing))
 print('LP frequency:', auto_lowpas_freq)
-#highpass_freq, lowpass_freq = [auto_hipas_freq ,auto_lowpas_freq]
-highpass_freq, lowpass_freq = [200 ,20e3]
+highpass_freq, lowpass_freq = [auto_hipas_freq ,auto_lowpas_freq]
+#highpass_freq, lowpass_freq = [200 ,20e3]
 freq_range = [start_f, end_f]
 
 cutoff = auto_hipas_freq # [Hz] highpass filter cutoff frequency
@@ -162,9 +159,8 @@ tgtmic_relevant_freqs = np.logical_and(centrefreqs>=frequency_band[0],
 speed = 100 
 turn_speed = 150
 
-left_sensor_threshold = 100
-right_sensor_threshold = 100	
-
+left_sensor_threshold = 250
+right_sensor_threshold = 250	
 
 if __name__ == '__main__':
 
@@ -263,8 +259,11 @@ if __name__ == '__main__':
             audio_processor.input_stream, daemon = True)
         inputstream_thread.start()
 
-    move_thread = threading.Thread(target=robot_move.audio_move, daemon = True)
-    move_thread.start()
+    # move_thread = threading.Thread(target=robot_move.audio_move, daemon = True)
+    # move_thread.start()
+
+    attraction_thread = threading.Thread(target=robot_move.attraction_only, daemon = True)
+    attraction_thread.start()
     event = threading.Event() 
     
     time2 = startime.strftime('_%Y-%m-%d__%H-%M-%S')
@@ -273,14 +272,14 @@ if __name__ == '__main__':
     npy_data = os.path.join(folder_path, name)
 
     # timestamp_queue.put([audio_processor.ts_queue.get(), 0, 'recording_start'])
-    np.save(npy_data, np.array([audio_processor.ts_queue.get(), 0, 0, 'recording_start'], dtype=object))
+    timestamp_queue.put([audio_processor.ts_queue.get(), 0, 0, 'recording_start'])
     try:
         while True:
-            start_time = time.time() 
-            event.clear()  
-            timestamp = datetime.datetime.timestamp(datetime.datetime.now(datetime.timezone.utc))# POSIX timestamp
-            timestamp_queue.put([timestamp, 0, 'start'])  # Put the timestamp in the queue (no block=False, keeps all values)
-            np.save(npy_data, np.array([timestamp, 0, 'start'], dtype=object))
+            start_time = time.time()
+            event.clear()
+            timestamp = datetime.datetime.timestamp(datetime.datetime.now(datetime.timezone.utc))  # POSIX timestamp
+            timestamp_queue.put([timestamp, 0, 0, 'start'])  # Put the timestamp in the queue (no block=False, keeps all values)
+            # np.save(npy_data, np.array([timestamp, 0, 'start'], dtype=object))
             with sd.OutputStream(samplerate=fs,
                                 blocksize=0, 
                                 device=usb_fireface_index, 
@@ -294,7 +293,7 @@ if __name__ == '__main__':
                                             time.sleep(input_buffer_time*2.3)
                                     
 
-            # print('out time =', time.time() - start_time)  
+            print('out time =', time.time() - start_time)  
             # time.sleep(0.25)                     
             start_time_1 = time.time()
             if method == 'DAS':
@@ -302,7 +301,7 @@ if __name__ == '__main__':
                 timestamp = datetime.datetime.timestamp(datetime.datetime.now(datetime.timezone.utc))# POSIX timestamp
                 args.angle, dB_SPL_level = audio_processor.update_das()
                 timestamp_queue.put([timestamp,dB_SPL_level[0],args.angle])  # Put the timestamp in the queue (no block=False, keeps all values)
-                np.save(npy_data, np.array([timestamp,dB_SPL_level[0],args.angle], dtype=object))                
+                # np.save(npy_data, np.array([timestamp,dB_SPL_level[0],args.angle], dtype=object))                
                 print(time.time() - start_time_1, 'DAS time')
                 # print(time.time(), 'end time')
                 angle_queue.put(args.angle)
@@ -334,36 +333,91 @@ if __name__ == '__main__':
     except Exception as e:
         parser.exit(type(e).__name__ + ': ' + str(e))
         robot_move.stop()
-        full_path = os.path.join(folder_path_data, args.timestamp_filename)
-        with open(full_path, "w", newline='') as file:
-            writer = csv.writer(file)
-            # Write all items from the queue to the CSV file
-            while not timestamp_queue.empty():
-                writer.writerow(timestamp_queue.get())
-        print(f"Matrix has been saved as csv to {folder_path_data}\n")
+        # Collect all remaining items from the queue and append to existing npy data
+        remaining_data = []
+        while not timestamp_queue.empty():
+            remaining_data.append(timestamp_queue.get())
+        if remaining_data:
+            # Load existing data if file exists
+            if os.path.exists(npy_data + ".npy"):
+                existing_data = np.load(npy_data + ".npy", allow_pickle=True)
+                # Ensure existing_data is always a list of records
+                if existing_data.ndim == 1 and isinstance(existing_data[0], (list, np.ndarray)):
+                    combined_data = np.concatenate([existing_data, remaining_data], axis=0)
+                else:
+                    combined_data = np.array([existing_data] + remaining_data, dtype=object)
+            else:
+                combined_data = np.array(remaining_data, dtype=object)
+            np.save(npy_data, combined_data)
+        print(f"Matrix has been saved to npy at {npy_data}\n")
+        # full_path = os.path.join(folder_path_data, args.timestamp_filename)
+        # with open(full_path, "w", newline='') as file:
+        #     writer = csv.writer(file)
+        #     # Write all items from the queue to the CSV file
+        #     while not timestamp_queue.empty():
+        #         writer.writerow(timestamp_queue.get())
+        # print(f"Matrix has been saved as csv to {folder_path_data}\n")
     except Exception as err:
         # Stop robot
+        robot_move.running = False
         robot_move.stop()
-        full_path = os.path.join(folder_path_data, args.timestamp_filename)
-        with open(full_path, "w", newline='') as file:
-            writer = csv.writer(file)
-            # Write all items from the queue to the CSV file
-            while not timestamp_queue.empty():
-                writer.writerow(timestamp_queue.get())
-        print(f"Matrix has been saved as csv to {folder_path_data}\n")
-        print('err:',err)
+        # Collect all remaining items from the queue and append to existing npy data
+        remaining_data = []
+        while not timestamp_queue.empty():
+            remaining_data.append(timestamp_queue.get())
+        if remaining_data:
+            # Load existing data if file exists
+            if os.path.exists(npy_data + ".npy"):
+                existing_data = np.load(npy_data + ".npy", allow_pickle=True)
+                # Ensure existing_data is always a list of records
+                if existing_data.ndim == 1 and isinstance(existing_data[0], (list, np.ndarray)):
+                    combined_data = np.concatenate([existing_data, remaining_data], axis=0)
+                else:
+                    combined_data = np.array([existing_data] + remaining_data, dtype=object)
+            else:
+                combined_data = np.array(remaining_data, dtype=object)
+            np.save(npy_data, combined_data)
+        print(f"Matrix has been saved to npy at {npy_data}\n")
+        # full_path = os.path.join(folder_path_data, args.timestamp_filename)
+        # with open(full_path, "w", newline='') as file:
+        #     writer = csv.writer(file)
+        #     # Write all items from the queue to the CSV file
+        #     while not timestamp_queue.empty():
+        #         writer.writerow(timestamp_queue.get())
+        # print(f"Matrix has been saved as csv to {folder_path_data}\n")
     except KeyboardInterrupt:
         robot_move.running = False
         robot_move.stop()
-        full_path = os.path.join(folder_path_data, args.timestamp_filename)
-        with open(full_path, "w", newline='') as file:
-            writer = csv.writer(file)
-            # Write all items from the queue to the CSV file
-            while not timestamp_queue.empty():
-                writer.writerow(timestamp_queue.get())
-        print(f"Matrix has been saved as csv to {folder_path_data}\n")
+        # Collect all remaining items from the queue and append to existing npy data
+        remaining_data = []
+        while not timestamp_queue.empty():
+            remaining_data.append(timestamp_queue.get())
+        if remaining_data:
+            # Load existing data if file exists
+            if os.path.exists(npy_data + ".npy"):
+                existing_data = np.load(npy_data + ".npy", allow_pickle=True)
+                # Ensure existing_data is always a list of records
+                if existing_data.ndim == 1 and isinstance(existing_data[0], (list, np.ndarray)):
+                    combined_data = np.concatenate([existing_data, remaining_data], axis=0)
+                else:
+                    combined_data = np.array([existing_data] + remaining_data, dtype=object)
+            else:
+                combined_data = np.array(remaining_data, dtype=object)
+            np.save(npy_data, combined_data)
+        print(f"Matrix has been saved to npy at {npy_data}\n")
+        # full_path = os.path.join(folder_path_data, args.timestamp_filename)
+        # with open(full_path, "w", newline='') as file:
+        #     writer = csv.writer(file)
+        #     # Write all items from the queue to the CSV file
+        #     while not timestamp_queue.empty():
+        #         writer.writerow(timestamp_queue.get())
+        # print(f"Matrix has been saved as csv to {folder_path_data}\n")
         inputstream_thread.join()
         move_thread.join()
         print('\nRecording finished: ' + repr(args.filename)) 
         parser.exit(0)  
-        
+    def handle_sigterm(signum, frame):
+        robot_move.running = False
+        robot_move.stop()
+        print("Process terminated. Thymio stopped.")
+        parser.exit(0)
