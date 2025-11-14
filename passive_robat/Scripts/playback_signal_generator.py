@@ -16,14 +16,14 @@ import time
 #%%
 # make a sweep
 # durns = np.array([3, 4, 5, 8, 10] )*1e-3
-durns = np.array([4*1e-3])
-fs = 48000 # Hz
+durns = np.array([20*1e-3])
+fs = 192000 # Hz
 
 all_sweeps = []
 for durn in durns:
     time.sleep(0.1)  # wait for the sound card to settle
     t = np.linspace(0, durn, int(fs*durn))
-    start_f, end_f = 100, 24e3
+    start_f, end_f = 9e3, 4e3
     sweep = signal.chirp(t, start_f, t[-1], end_f)
     sweep *= signal.windows.tukey(sweep.size, 0.2)
     sweep *= 0.8
@@ -32,4 +32,7 @@ for durn in durns:
     time.sleep(0.1)  # wait for the sound card to settle
     
 sweeps_combined = np.concatenate(all_sweeps)
-sf.write('01_24k_1sweeps_4ms_amp08_48k.wav', sweeps_combined, samplerate=fs)
+num_repeats = int(30 * 60 * fs / len(sweeps_combined))
+sweeps_combined = np.tile(sweeps_combined, num_repeats)
+sf.write('repeated_chirps_9-4khz_30min.wav', sweeps_combined, samplerate=fs)
+# %%

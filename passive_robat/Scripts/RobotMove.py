@@ -85,7 +85,7 @@ class RobotMove():
 
                 # Make a decision based on the latest values.
 
-                if level is not None and level < self.critical_level and level > self.trigger_level:
+                if level is not None and level > self.trigger_level:
                     self.robot["leds.top"] = [0, 0, 255]
                     self.robot["leds.bottom.right"] = [0, 0, 255]
                     self.robot["leds.bottom.left"] = [0, 0, 255]
@@ -99,12 +99,77 @@ class RobotMove():
                         # print('4: Positive or zero angle received, rotating right')
                         self.rotate_right(angle)
                         continue
-                elif level is not None and level > self.critical_level:
+                else:
+                    pass
+
+                # After executing a turn, go back to moving straight.
+                #print("Returning to forward movement")
+                self.move_forward()
+                level = None
+
+            except Exception as e:
+                #print('Error in audio_move:', e)
+                self.stop_bool = True
+            except KeyboardInterrupt:
+                self.stop()
+        else:
+            self.stop()
+
+
+    def repulsion_only(self):
+        while self.running:
+            try:
+                # Check for a global stop signal (e.g., if the robot is lifted)
+                if self.check_stop_all_motion():
+                    self.stop_bool = True
+                    self.stop()
+                    continue  # Go back to top of loop
+                
+                self.avoid_white_line()
+
+                while not angle_queue.empty():
+                    angle = angle_queue.get()
+                    if angle is not None:
+                        if angle > -22 and angle < 22:
+                            self.robot['leds.circle'] = [255, 0, 0, 0, 255, 0, 0 ,0]
+                        elif angle > 22 and angle < 67:
+                            self.robot['leds.circle'] = [0, 255, 0, 255, 0, 0, 0 ,0]
+                        elif angle > 67:
+                            self.robot['leds.circle'] = [0, 0, 255, 0, 0, 0, 0 ,0 ]
+                        elif angle < -22 and angle > -67:
+                            self.robot['leds.circle'] = [0, 0, 0, 0, 0, 255, 0 ,255]
+                        elif angle < -67:
+                            self.robot['leds.circle'] = [0, 0, 0, 0, 0, 0, 255 ,0]
+
+                    elif angle is None:
+                        #print('Empty queue: no angle value')
+                        self.robot['leds.circle'] = [255, 255, 255, 255, 255, 255, 255 ,255]
+                        self.move_forward()  # Go straight if no angle is available.
+                        continue
+
+                # Flush the level queue similarly to get the latest level value.
+                while not level_queue.empty():
+                    level = level_queue.get()
+
+                # Make a decision based on the latest values.
+
+                if level is not None and level > self.critical_level:
                     self.robot["leds.top"] = [255, 0, 0]
                     self.robot["leds.bottom.right"] = [255, 0, 0]
                     self.robot["leds.bottom.left"] = [255, 0, 0]
-                    self.stop()
+                    if angle < 0:
+                        # print('5: Negative angle received, rotating right')
+                        self.robot["leds.bottom.right"] = [255, 0, 0]
+                        self.robot["leds.bottom.left"] = [255, 0, 0]  
+                        self.robot["leds.top"] = [255, 0, 0]                  
+                        self.smooth_rotate_right(5)
 
+                    else:
+                        # print('6: Positive angle received, rotating left')
+                        self.robot["leds.bottom.right"] = [255, 0, 0]
+                        self.robot["leds.bottom.left"] = [255, 0, 0]
+                        self.robot["leds.top"] = [255, 0, 0]                 
+                        self.smooth_rotate_left(5)
                 else:
                     pass
 
@@ -258,6 +323,35 @@ class RobotMove():
         else:
             self.stop()
 
+    def smooth_rotate_right(self, angle):
+        if self.robot is not None:
+            # print( "rotate right with angle:", angle)
+            counter = self.angle_to_time(angle, self.turn_speed)
+            start_time = time.time()
+            while time.time() - start_time < counter:
+                if self.check_stop_all_motion():
+                    self.stop_bool = True
+                    break
+                #print("rotate right with angle:", angle)
+                self.robot['motor.left.target']= self.turn_speed + self.turn_speed//2
+                self.robot['motor.right.target']= -self.turn_speed + self.turn_speed//2
+        else:
+            self.stop()
+
+    def smooth_rotate_left(self, angle):
+        if self.robot is not None:
+            counter = self.angle_to_time(angle, self.turn_speed)
+            start_time = time.time()
+            while time.time() - start_time < counter:
+                if self.check_stop_all_motion():
+                    self.stop_bool = True
+                    break
+                #print("rotate left with angle:", angle)
+                self.robot['motor.left.target']= -self.turn_speed + self.turn_speed//2
+                self.robot['motor.right.target']= self.turn_speed + self.turn_speed//2
+
+        else:
+            self.stop()
 
     def move_back(self): # move back when robot sees a obstacle in front
         if self.robot is not None:

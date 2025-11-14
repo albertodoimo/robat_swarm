@@ -374,7 +374,7 @@ class AudioProcessor:
 
         total_rms_freqwise_Parms = np.sqrt(np.sum(freqwise_Parms[self.tgtmic_relevant_freqs]**2))
         dB_SPL_level = pascal_to_dbspl(total_rms_freqwise_Parms) #dB SPL level for reference channel
-        print('db SPL:', dB_SPL_level)
+        # print('db SPL:', dB_SPL_level)
 
         # print('time to calculate dB SPL =', time.time() - start_time_4)
 
@@ -406,7 +406,7 @@ class AudioProcessor:
         top_n_peak_indices = np.argsort(peak_heights)[-N:]  # Indices of the N largest peaks # Indices of the N largest peaks
         top_n_peak_indices = top_n_peak_indices[::-1]
         peak_angles = theta[peaks[top_n_peak_indices]]  # Corresponding angles
-        print('peak angles', peak_angles, 'peak heights', peak_heights[top_n_peak_indices], '\n')
+        # print('peak angles', peak_angles, 'peak heights', peak_heights[top_n_peak_indices], '\n')
 
         end_time = time.time()
 

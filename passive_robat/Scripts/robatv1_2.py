@@ -41,11 +41,24 @@ from RobotMove import RobotMove
 from shared_queues import angle_queue, level_queue
 print('imports done')
 
+#################################################################################################
+# SETUP PARAMETERS
+
 # Create queues for storing data
 timestamp_queue = queue.Queue()
 
-timestamp_bool = False  # Set to True to save timestamps, False to not save timestamps
+timestamp_bool = True  # Set to True to save timestamps, False to not save timestamps
+if timestamp_bool == True:
+    print('Timestamps saving is ENABLED')
+else:
+    print('Timestamps saving is DISABLED')
+
 recording_bool = True  # Set to True to record audio, False to just process audio without recording
+if recording_bool == True:
+    print('Recording is ENABLED')
+else:
+    print('Recording is DISABLED')
+
 
 # Get the index of the USB card
 usb_fireface_index = get_card(sd.query_devices())
@@ -56,9 +69,14 @@ ni.ifaddresses('wlan0')
 raspi_local_ip = ni.ifaddresses('wlan0')[2][0]['addr']
 print('raspi_local_ip =', raspi_local_ip)
 
-# Parameters for the DOA algorithms
+################################################################################################
+# EXPERIMENT PARAMETERS
+
+behavior = 'repulsion'  # Options: 'attraction', 'repulsion', 'dynamic_movement'
+
+# Parameters for the DOA alga'  # Optorithms70
 trigger_level =  70 # dB SPL
-critical_level = 75 # dB SPL
+critical_level = 80 # dB SPL
 c = 343   # speed of sound
 fs = 48000
 
@@ -88,9 +106,21 @@ theta_das = np.linspace(-90, 90, 61) # angles resolution for DAS spectrum
 N_peaks = 1 # Number of peaks to detect in DAS spectrum
 
 # Parameters for the chirp signal
-duration_out = 20e-3  # Duration in seconds
-silence_post = 110 # [ms] can probably pushed to 20
-amplitude = 0.5 # Amplitude of the chirp
+duration_out = 10e-3  # Duration in seconds
+
+if behavior == 'attraction':
+    silence_post = 10 # [ms] can probably pushed to 20
+elif behavior == 'repulsion':
+    silence_post = 10 # [ms] can probably pushed to 20
+elif behavior == 'dynamic_movement':
+    silence_post = 110 # [ms] can probably pushed to 20
+
+if behavior == 'attraction':
+    amplitude = 0 # Amplitude of the chirp
+elif behavior == 'repulsion':
+    amplitude = 0 # Amplitude of the chirp
+elif behavior == 'dynamic_movement':
+    amplitude = 0.5 # Amplitude of the chirp
 
 t = np.linspace(0, duration_out, int(fs*duration_out))
 start_f, end_f = 24e3, 2e3
@@ -156,11 +186,14 @@ tgtmic_relevant_freqs = np.logical_and(centrefreqs>=frequency_band[0],
 # Thymio movement parameters
 
 # Straight speed
-speed = 100 
-turn_speed = 150
+speed = 200 
+turn_speed = 200
 
 left_sensor_threshold = 250
 right_sensor_threshold = 250	
+
+#######################################################################################################
+# MAIN FUNCTION
 
 if __name__ == '__main__':
 
@@ -256,14 +289,22 @@ if __name__ == '__main__':
         inputstream_thread.start()
     else:
         inputstream_thread = threading.Thread(target=
-            audio_processor.input_stream, daemon = True)
+            audio_processor.input_stream,  daemon = True)
         inputstream_thread.start()
+        print ('Input stream thread started')
+    if behavior == 'attraction':
+        attraction_thread = threading.Thread(target=robot_move.attraction_only, daemon = True)
+        attraction_thread.start()
+    elif behavior == 'repulsion':
+        repulsion_thread = threading.Thread(target=robot_move.repulsion_only, daemon = True)
+        repulsion_thread.start()
+    elif behavior == 'dynamic_movement':
+        move_thread = threading.Thread(target=robot_move.audio_move, daemon = True)
+        move_thread.start()
+    else:
+        print('No valid behavior provided')
+    
 
-    # move_thread = threading.Thread(target=robot_move.audio_move, daemon = True)
-    # move_thread.start()
-
-    attraction_thread = threading.Thread(target=robot_move.attraction_only, daemon = True)
-    attraction_thread.start()
     event = threading.Event() 
     
     time2 = startime.strftime('_%Y-%m-%d__%H-%M-%S')
@@ -293,7 +334,7 @@ if __name__ == '__main__':
                                             time.sleep(input_buffer_time*2.3)
                                     
 
-            print('out time =', time.time() - start_time)  
+            # print('out time =', time.time() - start_time)  
             # time.sleep(0.25)                     
             start_time_1 = time.time()
             if method == 'DAS':
@@ -302,11 +343,11 @@ if __name__ == '__main__':
                 args.angle, dB_SPL_level = audio_processor.update_das()
                 timestamp_queue.put([timestamp,dB_SPL_level[0],args.angle])  # Put the timestamp in the queue (no block=False, keeps all values)
                 # np.save(npy_data, np.array([timestamp,dB_SPL_level[0],args.angle], dtype=object))                
-                print(time.time() - start_time_1, 'DAS time')
+                # print(time.time() - start_time_1, 'DAS time')
                 # print(time.time(), 'end time')
                 angle_queue.put(args.angle)
                 level_queue.put(dB_SPL_level)
-
+                print('Angle:', args.angle, 'dB SPL:', dB_SPL_level[0])
 
             elif method == 'CC':
                 # timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S:%f')[:-3]  # Format timestamp to milliseconds
@@ -326,9 +367,6 @@ if __name__ == '__main__':
                 print('No valid method provided')
                 robot_move.stop()
 
-            # print('in time =', time.time() - start_time_1)
-        else:
-            robot_move.stop()
 
     except Exception as e:
         parser.exit(type(e).__name__ + ': ' + str(e))
@@ -414,6 +452,8 @@ if __name__ == '__main__':
         # print(f"Matrix has been saved as csv to {folder_path_data}\n")
         inputstream_thread.join()
         move_thread.join()
+        attraction_thread.join()
+        repulsion_thread.join()
         print('\nRecording finished: ' + repr(args.filename)) 
         parser.exit(0)  
     def handle_sigterm(signum, frame):
