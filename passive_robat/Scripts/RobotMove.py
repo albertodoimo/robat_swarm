@@ -15,6 +15,7 @@ class RobotMove():
         self.critical_level = critical_level
         self.trigger_level = trigger_level
         self.running = True
+        self.turning_angle = 5  # degrees
 
         print("Initializing Thymio Robot")
         port = Connection.serial_default_port()
@@ -92,13 +93,19 @@ class RobotMove():
                     # print('2.1: angle=', angle)
                     if angle < 0:
                         # print('3: Negative angle received, rotating left')
-                        self.rotate_left(angle)
+                        self.smooth_rotate_left(5)
                         # Wait for the rotation to complete before continuing the loop
                         continue
                     else:
                         # print('4: Positive or zero angle received, rotating right')
-                        self.rotate_right(angle)
+                        self.smooth_rotate_right(5)
                         continue
+                elif level is not None and level > self.critical_level:
+                    self.robot["leds.top"] = [255, 0, 0]
+                    self.robot["leds.bottom.right"] = [255, 0, 0]
+                    self.robot["leds.bottom.left"] = [255, 0, 0]
+                    self.stop()
+                    break
                 else:
                     pass
 
@@ -233,12 +240,12 @@ class RobotMove():
                     # print('2.1: angle=', angle)
                     if angle < 0:
                         # print('3: Negative angle received, rotating left')
-                        self.rotate_left(angle)
+                        self.rotate_left(self.turning_angle)
                         # Wait for the rotation to complete before continuing the loop
                         continue
                     else:
                         # print('4: Positive or zero angle received, rotating right')
-                        self.rotate_right(angle)
+                        self.rotate_right(self.turning_angle)
                         continue
                 elif level is not None and level > self.critical_level:
                     self.robot["leds.top"] = [255, 0, 0]
@@ -249,14 +256,16 @@ class RobotMove():
                         self.robot["leds.bottom.right"] = [255, 0, 0]
                         self.robot["leds.bottom.left"] = [255, 0, 0]  
                         self.robot["leds.top"] = [255, 0, 0]                  
-                        self.rotate_right(angle)
+                        self.rotate_right(self.turning_angle)
+                        # time.sleep(0.5)
 
                     else:
                         # print('6: Positive angle received, rotating left')
                         self.robot["leds.bottom.right"] = [255, 0, 0]
                         self.robot["leds.bottom.left"] = [255, 0, 0]
                         self.robot["leds.top"] = [255, 0, 0]                 
-                        self.rotate_left(angle)
+                        self.rotate_left(self.turning_angle)
+                        # time.sleep(0.5)
 
                 else:
                     pass
@@ -382,12 +391,12 @@ class RobotMove():
                     self.stop_bool = True
                     self.stop()
                     return
-                self.random_turn(120)
+                self.random_turn(90)
 
             elif self.robot['prox.ground.reflected'][0] > self.left_sensor_threshold:
                 # Left sensor detects the line
                 #print('line detected L')
-                counter = self.angle_to_time(90, self.turn_speed)
+                counter = self.angle_to_time(50, self.turn_speed)
                 start_time = time.time()
                 while time.time() - start_time < counter:
                     if self.check_stop_all_motion():
@@ -400,7 +409,7 @@ class RobotMove():
             elif self.robot['prox.ground.reflected'][1] > self.right_sensor_threshold:
                 # Right sensor detects the line   
                 #print('line detected R')
-                counter = self.angle_to_time(90, self.turn_speed)
+                counter = self.angle_to_time(50, self.turn_speed)
                 start_time = time.time()
                 while time.time() - start_time < counter:
                     if self.check_stop_all_motion():

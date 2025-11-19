@@ -72,11 +72,11 @@ print('raspi_local_ip =', raspi_local_ip)
 ################################################################################################
 # EXPERIMENT PARAMETERS
 
-behavior = 'repulsion'  # Options: 'attraction', 'repulsion', 'dynamic_movement'
+behavior = 'dynamic_movement'  # Options: 'attraction', 'repulsion', 'dynamic_movement'
 
-# Parameters for the DOA alga'  # Optorithms70
-trigger_level =  70 # dB SPL
-critical_level = 80 # dB SPL
+# Parameters for the DOA algorithm
+trigger_level = 60 # dB SPL
+critical_level = 60 # dB SPL
 c = 343   # speed of sound
 fs = 48000
 
@@ -120,7 +120,7 @@ if behavior == 'attraction':
 elif behavior == 'repulsion':
     amplitude = 0 # Amplitude of the chirp
 elif behavior == 'dynamic_movement':
-    amplitude = 0.5 # Amplitude of the chirp
+    amplitude = 0.8 # Amplitude of the chirp
 
 t = np.linspace(0, duration_out, int(fs*duration_out))
 start_f, end_f = 24e3, 2e3
@@ -186,11 +186,11 @@ tgtmic_relevant_freqs = np.logical_and(centrefreqs>=frequency_band[0],
 # Thymio movement parameters
 
 # Straight speed
-speed = 200 
-turn_speed = 200
+speed = 80 
+turn_speed = 100
 
-left_sensor_threshold = 250
-right_sensor_threshold = 250	
+left_sensor_threshold = 400
+right_sensor_threshold = 400	
 
 #######################################################################################################
 # MAIN FUNCTION
@@ -280,7 +280,7 @@ if __name__ == '__main__':
     # Create instances of the AudioProcessor and RobotMove classes
     audio_processor = AudioProcessor(fs, channels, block_size, analyzed_buffer_time, data, args, trigger_level, critical_level, mic_spacing, ref, highpass_freq, lowpass_freq, theta_das, N_peaks,
                                       usb_fireface_index, args.subtype, interp_sensitivity, tgtmic_relevant_freqs, args.filename, args.rec_samplerate, sos, sweep)
-    robot_move = RobotMove(speed, turn_speed, left_sensor_threshold, right_sensor_threshold, critical_level, trigger_level, ground_sensors_bool = True)
+    robot_move = RobotMove(speed, turn_speed, left_sensor_threshold, right_sensor_threshold, critical_level, trigger_level, ground_sensors_bool = False)
     
     # Create threads for the audio input and recording
     if recording_bool == True:
