@@ -15,7 +15,7 @@ class RobotMove():
         self.critical_level = critical_level
         self.trigger_level = trigger_level
         self.running = True
-        self.turning_angle = 10  # degrees
+        self.turning_angle = 5  # degrees
 
         print("Initializing Thymio Robot")
         port = Connection.serial_default_port()
@@ -257,7 +257,7 @@ class RobotMove():
                         self.robot["leds.bottom.left"] = [255, 0, 0]  
                         self.robot["leds.top"] = [255, 0, 0]                  
                         self.rotate_right(self.turning_angle)
-                        time.sleep(0.5)
+                        # time.sleep(0.5)
 
                     else:
                         # print('6: Positive angle received, rotating left')
@@ -265,7 +265,7 @@ class RobotMove():
                         self.robot["leds.bottom.left"] = [255, 0, 0]
                         self.robot["leds.top"] = [255, 0, 0]                 
                         self.rotate_left(self.turning_angle)
-                        time.sleep(0.5)
+                        # time.sleep(0.5)
 
                 else:
                     pass

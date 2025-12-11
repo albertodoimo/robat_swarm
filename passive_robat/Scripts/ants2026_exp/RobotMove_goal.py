@@ -15,7 +15,7 @@ class RobotMove():
         self.critical_level = critical_level
         self.trigger_level = trigger_level
         self.running = True
-        self.turning_angle = 10  # degrees
+        self.turning_angle = 5  # degrees
 
         print("Initializing Thymio Robot")
         port = Connection.serial_default_port()
@@ -257,7 +257,7 @@ class RobotMove():
                         self.robot["leds.bottom.left"] = [255, 0, 0]  
                         self.robot["leds.top"] = [255, 0, 0]                  
                         self.rotate_right(self.turning_angle)
-                        time.sleep(0.5)
+                        # time.sleep(0.5)
 
                     else:
                         # print('6: Positive angle received, rotating left')
@@ -265,7 +265,7 @@ class RobotMove():
                         self.robot["leds.bottom.left"] = [255, 0, 0]
                         self.robot["leds.top"] = [255, 0, 0]                 
                         self.rotate_left(self.turning_angle)
-                        time.sleep(0.5)
+                        # time.sleep(0.5)
 
                 else:
                     pass
@@ -396,7 +396,7 @@ class RobotMove():
             elif self.robot['prox.ground.reflected'][0] > self.left_sensor_threshold:
                 # Left sensor detects the line
                 #print('line detected L')
-                counter = self.angle_to_time(50, self.turn_speed)
+                counter = self.angle_to_time(20, self.turn_speed)
                 start_time = time.time()
                 while time.time() - start_time < counter:
                     if self.check_stop_all_motion():
@@ -409,7 +409,7 @@ class RobotMove():
             elif self.robot['prox.ground.reflected'][1] > self.right_sensor_threshold:
                 # Right sensor detects the line   
                 #print('line detected R')
-                counter = self.angle_to_time(50, self.turn_speed)
+                counter = self.angle_to_time(20, self.turn_speed)
                 start_time = time.time()
                 while time.time() - start_time < counter:
                     if self.check_stop_all_motion():

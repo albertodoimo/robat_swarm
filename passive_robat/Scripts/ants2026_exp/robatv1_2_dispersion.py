@@ -37,7 +37,7 @@ from functions.matched_filter import matched_filter
 from functions.detect_peaks import detect_peaks
 
 from AudioProcessor import AudioProcessor
-from RobotMove import RobotMove
+from RobotMove_dispersion import RobotMove
 from shared_queues import angle_queue, level_queue
 print('imports done')
 
@@ -75,8 +75,8 @@ print('raspi_local_ip =', raspi_local_ip)
 behavior = 'dynamic_movement'  # Options: 'attraction', 'repulsion', 'dynamic_movement'
 
 # Parameters for the DOA algorithm
-trigger_level = 65 # dB SPL
-critical_level = 75 # dB SPL
+trigger_level = 60 # dB SPL
+critical_level = 60 # dB SPL
 c = 343   # speed of sound
 fs = 48000
 
@@ -120,7 +120,7 @@ if behavior == 'attraction':
 elif behavior == 'repulsion':
     amplitude = 0 # Amplitude of the chirp
 elif behavior == 'dynamic_movement':
-    amplitude = 0.6 # Amplitude of the chirp
+    amplitude = 0.8 # Amplitude of the chirp
 
 t = np.linspace(0, duration_out, int(fs*duration_out))
 start_f, end_f = 24e3, 2e3
@@ -186,7 +186,7 @@ tgtmic_relevant_freqs = np.logical_and(centrefreqs>=frequency_band[0],
 # Thymio movement parameters
 
 # Straight speed
-speed = 150 
+speed = 80 
 turn_speed = 100
 
 left_sensor_threshold = 400

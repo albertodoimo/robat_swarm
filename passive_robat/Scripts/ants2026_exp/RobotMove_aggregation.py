@@ -15,7 +15,7 @@ class RobotMove():
         self.critical_level = critical_level
         self.trigger_level = trigger_level
         self.running = True
-        self.turning_angle = 10  # degrees
+        self.turning_angle = 5  # degrees
 
         print("Initializing Thymio Robot")
         port = Connection.serial_default_port()
