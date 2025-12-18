@@ -6,29 +6,18 @@ Usage
 Installation
 ------------
 
-To use Lumache, first install it using pip:
+.. To use Lumache, first install it using pip:
 
-.. code-block:: console
+.. .. code-block:: console
 
-   (.venv) $ pip install lumache
+..    (.venv) $ pip install lumache
 
-Creating recipes
+Logic Overview
 ----------------
 
-To retrieve a list of random ingredients,
-you can use the ``lumache.get_random_ingredients()`` function:
+By running  `SonoRo_swarm.py` on your SonoRo robots, AudioProcessor class starts streaming Direction of Arrival (DOA) of incoming audio to the robot and dB SPL values.
+`SonoRo_swarm.py` then passes then to RobotMove class, which moves the robot's wheel accorsingly to perform the selected behaviour.
 
-.. autofunction:: lumache.get_random_ingredients
-
-The ``kind`` parameter should be either ``"meat"``, ``"fish"``,
-or ``"veggies"``. Otherwise, :py:func:`lumache.get_random_ingredients`
-will raise an exception.
-
-.. autoexception:: lumache.InvalidKindError
-
-For example:
-
->>> import lumache
->>> lumache.get_random_ingredients()
-['shells', 'gorgonzola', 'parsley']
+By selecting ``attraction`` behaviour, the robot will move towards the direction of the highest dB SPL value, while by selecting ``repulsion`` behaviour, the robot will move away from it.
+``dynamic_movement`` parameter instead combined the two movements together using the selected dB SPL ``trigger_level`` and ``critical_level`` thresholds. When the dB SPL is above `critical` the threshold, the robot will move away from the sound source, while when it is above the `trigger` threshold, it will move towards it.
 
