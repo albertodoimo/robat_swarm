@@ -1,4 +1,4 @@
-Welcome to Lumache's documentation!
+Welcome to SonoRo_swarm's documentation!
 ===================================
 
 **SonoRo_swarm** is a robotic swarm framework designed to run on the SonoRo robotic platform, supporting research and active sensing applications.
@@ -30,10 +30,12 @@ Contents
 --------
 
 .. toctree::
+   :caption: Introduction:
 
-   Example
-   - Attraction
-   - Repulsion
+   usage.rst
+
+.. toctree::
+   :caption: Examples:
 
 License
 -------
